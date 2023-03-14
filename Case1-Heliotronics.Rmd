@@ -19,6 +19,7 @@ library(ggplot2)
 ```{r Import Data}
 sol_panels <- fread("Case_Stud_I.csv", sep = ",", header = T)
 
+print("test")
 
 attach(sol_panels)
 plot(number_of_solar_panels, manufacturing_cost, title ="Scatter plot of mean cost per unit")
