@@ -41,12 +41,10 @@ exp_curve_log
 ```
 
 ```{r}
-predict = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels, interval = "confidence")
+predict = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
 plot(predict)
 
 summary(predict)
-
-predict$
 
 ```
 
@@ -54,7 +52,8 @@ predict$
 ```{r}
 predict$coefficients
 
-learn_rate = 1- predict$coefficients[2]
+learn_rate = 1 - predict$coefficients[2]
+
 print(learn_rate)
 ```
 
@@ -63,11 +62,11 @@ print(learn_rate)
 # set A and B
 
 A <- predict$coefficients[1]
-A <- exp(A)
+A <- as.numeric(exp(A))
 print(A)
 
-B <- predict$coefficients[2]
-
+B <- as.numeric(predict$coefficients[2])
+print(B)
 
 pred_cost_table <- data.frame("Production_Amount" = seq(100, 5000, 100))
 
@@ -85,11 +84,33 @@ pred_cost_plot <- ggplot() +
   geom_line(data = pred_cost_table, aes(x= Production_Amount, y = Pred_Cost, color = "red"))
 pred_cost_plot
 
+pred_sd <- sd(sol_panels$manufacturing_cost)
 
-str(sol_panels)
-str(pred_cost_table)
-attach(pred_cost_table)
-plot(Pred_Cost)
+pred_cost_table["Lower_Bound"] <- pred_cost_table$Pred_Cost - pred_sd * 1.96
+pred_cost_table["Upper_Bound"] <- pred_cost_table$Pred_Cost + pred_sd * 1.96
+
+
+
+pred_cost_plot_CI <- ggplot(data = pred_cost_table) +
+  geom_line(aes(x= Production_Amount, y = Pred_Cost, color = "red"))+
+  geom_line(aes(x= Production_Amount, y = Upper_Bound, color = "blue"))+
+  geom_line(aes(x= Production_Amount, y = Lower_Bound, color = "blue"))
+
+pred_cost_plot_CI
+```
+
+
+```{r}
+CI = confint(predict)
+CI
+
+b_upper = CI[2,2]
+b_lower = CI [2,1]
+
+
+pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
+pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
+
 ```
 
 
