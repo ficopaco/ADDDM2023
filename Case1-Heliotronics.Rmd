@@ -41,10 +41,12 @@ exp_curve_log
 ```
 
 ```{r}
-predict = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
+predict = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels, interval = "confidence")
 plot(predict)
 
 summary(predict)
+
+predict$
 
 ```
 
@@ -55,5 +57,43 @@ predict$coefficients
 learn_rate = 1- predict$coefficients[2]
 print(learn_rate)
 ```
+
+
+```{r}
+# set A and B
+
+A <- predict$coefficients[1]
+A <- exp(A)
+print(A)
+
+B <- predict$coefficients[2]
+
+
+pred_cost_table <- data.frame("Production_Amount" = seq(100, 5000, 100))
+
+pred_cost_table["Pred_Cost"] <- (pred_cost_table$Production_Amount ^ B)*A
+
+mean_cost <- mean(pred_cost_table[47:50, "Pred_Cost"])
+mean_cost
+```
+
+
+
+```{r}
+pred_cost_plot <- ggplot() +
+  geom_point(data = sol_panels, aes(x= number_of_solar_panels, y = manufacturing_cost)) +
+  geom_line(data = pred_cost_table, aes(x= Production_Amount, y = Pred_Cost, color = "red"))
+pred_cost_plot
+
+
+str(sol_panels)
+str(pred_cost_table)
+attach(pred_cost_table)
+plot(Pred_Cost)
+```
+
+
+
+
 
 log-log graph to behave in a linear way
