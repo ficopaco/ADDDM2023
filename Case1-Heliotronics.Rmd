@@ -9,7 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ```{r Libraries}
 library(data.table)
 library(ggplot2)
@@ -17,7 +16,6 @@ library(ggplot2)
 ```
 
 # Data Exploration
-
 
 ```{r}
 sol_panels <- fread("Case_Stud_I.csv", sep = ",", header = T)
@@ -48,15 +46,26 @@ summary(predict)
 
 ```
 
+$C_{x} &= C_{1}x^{\log_{2}(b)}$
+
+$$\begin{aligned} b
+&= \log_{2}(\tilde b)\\
+&= \frac{\log{(\tilde b)}}{\log(2)\\
+}
+\end{aligned}$$
+
+$ $
 
 ```{r}
 predict$coefficients
 
-learn_rate = 1 - predict$coefficients[2]
+lr = 2^predict$coefficients[2]
+lr
+1-lr
+learn_rate = 1 - exp(log(2)*predict$coefficients[2])
 
 print(learn_rate)
 ```
-
 
 ```{r}
 # set A and B
@@ -75,8 +84,6 @@ pred_cost_table["Pred_Cost"] <- (pred_cost_table$Production_Amount ^ B)*A
 mean_cost <- mean(pred_cost_table[47:50, "Pred_Cost"])
 mean_cost
 ```
-
-
 
 ```{r}
 pred_cost_plot <- ggplot() +
@@ -99,7 +106,6 @@ pred_cost_plot_CI <- ggplot(data = pred_cost_table) +
 pred_cost_plot_CI
 ```
 
-
 ```{r}
 CI = confint(predict)
 CI
@@ -112,9 +118,5 @@ pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
 pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
 
 ```
-
-
-
-
 
 log-log graph to behave in a linear way
