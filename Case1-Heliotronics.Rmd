@@ -1,129 +1,209 @@
 ---
-title: "ADDDM - Case Study 1"
-author: "Francisco Arrieta - Jonathan Edwards"
+title: "Case Study 1: Heliotronics Estimating an Experience Curve"
+author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document: 
+    theme: readable
+    highlight: pygments
+    toc: true
+    toc_float: true
+    number_sections: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
+> *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
+
+------------------------------------------------------------------------
+
 ```{r Libraries}
+#import necesary libraries
 library(data.table)
 library(ggplot2)
+library(kableExtra)
 ```
 
 # Data Exploration
 
-HELLO HELLO THIS IS JONATHAN PUSH TEST
-
-ANOTHER TEST
-
 ```{r Import Data}
+#import data
 sol_panels <- fread("Case_Stud_I.csv", sep = ",", header = T)
 
-print("test")
+#display data extract
+head(sol_panels) |> 
+kbl() |> 
+kable_classic_2(full_width = F)
 
+#plot scatter plot of all available data
 attach(sol_panels)
-plot(number_of_solar_panels, manufacturing_cost, title ="Scatter plot of mean cost per unit")
+plot(number_of_solar_panels, manufacturing_cost, 
+     main ="Scatter plot of mean cost per unit", 
+     xlab = "Production Amount", 
+     ylab = "Manufacturing Cost", 
+     pch = 19, 
+     col = "#0099F8")
 detach(sol_panels)
 
-exp_curve <- ggplot(data = sol_panels, aes(x= number_of_solar_panels, y = manufacturing_cost)) +
+
+#show curve with all available data
+prod_curve_plot <- ggplot(data = sol_panels, 
+                          aes(x= number_of_solar_panels, y = manufacturing_cost)) +
   geom_line(color = "#0099F8")+
-  labs(title = "Bevaviour of mean cost per unit of production", x= "Production Amount", y = "Manufacturing Cost")+
+  labs(title = "Bevavior of mean cost per unit of production", 
+       x= "Production Amount", 
+       y = "Manufacturing Cost")+
   theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold"))
 
-exp_curve
+#plot
+prod_curve_plot
 ```
 
-```{r}
-exp_curve_log <- ggplot(data = sol_panels, aes(x= log(number_of_solar_panels), y = log(manufacturing_cost))) +
+# Data transformation
+
+```{r Log Transform}
+#plot the transformed variables
+prod_curve_log <- ggplot(data = sol_panels, aes(x= log(number_of_solar_panels), y = log(manufacturing_cost), color = "Log Transformed")) +
   geom_line() +
-  stat_smooth(method = "lm")
-exp_curve_log
+  labs(title = "Bevavior of mean cost per unit of production", 
+       x= "Log transformation of Production Amount", 
+       y = "Log transformation of Manufacturing Cost")+
+  theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold"))+
+  geom_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = F,
+              size = 0.8,
+              aes(color = "Linear Model"))+
+scale_color_manual(name = "Regression", values = c("Linear Model" = "#387C2C", "Log Transformed" = "black"))
+prod_curve_log
 
 ```
 
-```{r}
-predict = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
-plot(predict)
+# Fitting a model
 
-summary(predict)
+```{r linear model}
+#create a linear model to predict experience curve values
+exp_curve_pred = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
+
+#check assumptions to see if model fits well
+plot(exp_curve_pred)
+summary(exp_curve_pred)
 
 ```
 
-$C_{x} &= C_{1}x^{\log_{2}(b)}$
+The learning rate is calculated using the progress ratio. 
 
-$$\begin{aligned} b
-&= \log_{2}(\tilde b)\\
-&= \frac{\log{(\tilde b)}}{\log(2)\\
-}
-\end{aligned}$$
+\begin{aligned}
+y &= A \times X^{b}\\
 
-$ $
+\tilde y &= A \times (2X)^{b}\\
 
-```{r}
-predict$coefficients
+\frac{\tilde y}{y} &= \frac{A \times (2X)^{b}}{A \times X^{b}} = 2^{b}\\
+Progress &\quad ratio = 2^{b}\\
+\end{aligned}
 
-lr = 2^predict$coefficients[2]
-lr
-1-lr
-learn_rate = 1 - exp(log(2)*predict$coefficients[2])
+The learning rate (ie proportion of decrease) is:
 
-print(learn_rate)
+\begin{aligned}
+Learning \quad rate&: 1 - Progress \quad ratio\\
+1- \frac{\tilde y}{y} &= 1 - 2^{b}
+\end{aligned}
+
+```{r learning rate}
+#extract the value of b from the coefficients of linear model
+B = exp_curve_pred$coefficients[2]
+
+#calculate learning rate through formula 
+learn_rate1 = 1 - exp(log(2)*B)
+print(learn_rate1)
+
+#alternate method
+prog_ratio = 2^B
+prog_ratio
+
+learn_rate2 = 1-prog_ratio
+print(learn_rate2)
+
 ```
 
-```{r}
+# Predicting Price
+
+```{r predict cost}
 # set A and B
-
-A <- predict$coefficients[1]
+A <- exp_curve_pred$coefficients[1]
 A <- as.numeric(exp(A))
 print(A)
 
-B <- as.numeric(predict$coefficients[2])
+B <- as.numeric(exp_curve_pred$coefficients[2])
 print(B)
 
+#create table with units up to 5000 cumulative
 pred_cost_table <- data.frame("Production_Amount" = seq(100, 5000, 100))
 
+#add column with predicted value
 pred_cost_table["Pred_Cost"] <- (pred_cost_table$Production_Amount ^ B)*A
 
+#calculate the mean for the last 4 periods
 mean_cost <- mean(pred_cost_table[47:50, "Pred_Cost"])
 mean_cost
 ```
 
-```{r}
+```{r plot confidence intervals}
+#create a plot to see real data vs prediction
 pred_cost_plot <- ggplot() +
-  geom_point(data = sol_panels, aes(x= number_of_solar_panels, y = manufacturing_cost)) +
-  geom_line(data = pred_cost_table, aes(x= Production_Amount, y = Pred_Cost, color = "red"))
+  geom_point(data = sol_panels, 
+             aes(x= number_of_solar_panels, 
+                 y = manufacturing_cost), 
+             color = "#0099F8") +
+  geom_line(data = pred_cost_table, 
+            aes(x= Production_Amount, 
+                y = Pred_Cost), 
+            color = "#7F35B2", 
+            size = 1)+
+  labs(title = "Prediction of mean cost per unit of production", 
+       x= "Production Amount", 
+       y = "Manufacturing Cost")+
+  theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold"))
+  
 pred_cost_plot
 
-pred_sd <- sd(sol_panels$manufacturing_cost)
-
-pred_cost_table["Lower_Bound"] <- pred_cost_table$Pred_Cost - pred_sd * 1.96
-pred_cost_table["Upper_Bound"] <- pred_cost_table$Pred_Cost + pred_sd * 1.96
-
-
-
-pred_cost_plot_CI <- ggplot(data = pred_cost_table) +
-  geom_line(aes(x= Production_Amount, y = Pred_Cost, color = "red"))+
-  geom_line(aes(x= Production_Amount, y = Upper_Bound, color = "blue"))+
-  geom_line(aes(x= Production_Amount, y = Lower_Bound, color = "blue"))
-
-pred_cost_plot_CI
 ```
 
+# Predicting Confidence Interval
+
 ```{r}
-CI = confint(predict)
+#calculate confidence intervals
+CI = confint(exp_curve_pred)
 CI
 
 b_upper = CI[2,2]
-b_lower = CI [2,1]
+b_lower = CI[2,1]
 
+#add individual CI per prod level
+pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
+pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
 
-pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
-pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
+#plot CI regressions in same graph
+pred_cost_plot_CI <- 
+  pred_cost_plot + 
+  geom_line(data = pred_cost_table, 
+            aes(x= Production_Amount, y = Upper_Bound, color = "Bounds"))+
+  geom_line(data = pred_cost_table, 
+            aes(x= Production_Amount, y = Lower_Bound, color = "Bounds"))+
+  scale_color_manual(name = "Confidence Intervals", 
+                     values = c("Bounds" = "#00C1D5"))
+pred_cost_plot_CI
+
+#create summary of average values for last 400 units
+avg_values <- data.frame("Avg Lower Bound" = round(mean(pred_cost_table[47:50,3]),2),
+                        "Avg Production" = round(mean(pred_cost_table[47:50,2]),2),
+                        "Avg Upper Bound" = round(mean(pred_cost_table[47:50,4]),2))
+
+#display data extract
+avg_values |> 
+kbl() |> 
+kable_classic_2(full_width = F)
 
 ```
-
-log-log graph to behave in a linear way
