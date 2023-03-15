@@ -12,20 +12,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r Libraries}
 library(data.table)
 library(ggplot2)
-
 ```
 
 # Data Exploration
 
-```{r}
+```{r Import Data}
 sol_panels <- fread("Case_Stud_I.csv", sep = ",", header = T)
 
 
 attach(sol_panels)
-plot(number_of_solar_panels)
-plot(number_of_solar_panels, manufacturing_cost)
+plot(number_of_solar_panels, manufacturing_cost, title ="Scatter plot of mean cost per unit")
+detach(sol_panels)
 
-exp_curve <- ggplot(data = sol_panels, aes(x= number_of_solar_panels, y = manufacturing_cost)) + geom_line()
+exp_curve <- ggplot(data = sol_panels, aes(x= number_of_solar_panels, y = manufacturing_cost)) +
+  geom_line(color = "#0099F8")+
+  labs(title = "Bevaviour of mean cost per unit of production", x= "Production Amount", y = "Manufacturing Cost")+
+  theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold"))
 
 exp_curve
 ```
