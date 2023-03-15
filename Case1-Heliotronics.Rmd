@@ -88,7 +88,7 @@ prod_curve_log
 exp_curve_pred = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
 
 #check assumptions to see if model fits well
-plot(exp_curve_pred)
+plot(exp_curve_pred, which=c(2,1))
 summary(exp_curve_pred)
 
 ```
