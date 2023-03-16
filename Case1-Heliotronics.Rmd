@@ -96,11 +96,11 @@ summary(exp_curve_pred)
 The learning rate is calculated using the progress ratio. 
 
 \begin{aligned}
-y &= A \times X^{b}\\
+y &= A \cdot X^{b}\\
 
-\tilde y &= A \times (2X)^{b}\\
+\tilde y &= A \cdot (2X)^{b}\\
 
-\frac{\tilde y}{y} &= \frac{A \times (2X)^{b}}{A \times X^{b}} = 2^{b}\\
+\frac{\tilde y}{y} &= \frac{A \cdot (2X)^{b}}{A \cdot X^{b}} = 2^{b}\\
 Progress &\quad ratio = 2^{b}\\
 \end{aligned}
 
