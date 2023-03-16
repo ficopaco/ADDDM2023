@@ -116,14 +116,14 @@ Learning \quad rate&: 1 - Progress \quad ratio\\
 B = exp_curve_pred$coefficients[2]
 
 #calculate learning rate through formula 
-learn_rate1 = 1 - exp(log(2)*B)
+learn_rate1 = 1 - exp(log(2)*B) # I THINK THIS SHOULD JUST BE learn_rate1 = 1 - 2^B, because log(y)=log(A)+B*log(x)
 print(learn_rate1)
 
 #alternate method
 prog_ratio = 2^B
 prog_ratio
 
-learn_rate2 = 1-prog_ratio
+learn_rate2 = 1-prog_ratio #YES THIS IS CORRECT I BELIEVE
 print(learn_rate2)
 
 ```
@@ -132,6 +132,7 @@ print(learn_rate2)
 
 ```{r predict cost}
 # set A and B
+# HERE I WOULD TRY AND KEEP NOTATION CONSISTANT AND USE DIFFERENT VARIABLE FOR A <- exp_curve_pred$coefficients[1] SUCH AS a instead of A
 A <- exp_curve_pred$coefficients[1]
 A <- as.numeric(exp(A))
 print(A)
