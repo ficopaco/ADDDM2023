@@ -251,13 +251,17 @@ We then use the upper and lower bounds of experience parameter $b$'s confidence 
 ```{r}
 #calculate confidence intervals
 CI = confint(exp_curve_pred)
-CI
 
 b_upper = CI[2,2]
 b_lower = CI[2,1]
 
-((b_upper-b))
-0.007936*1.96
+#compare with standard deviation
+CI_int=b_upper-b
+std = 0.007936
+CI_std = 0.007936*1.96
+paste("Confidence interval half size=",CI_int)
+paste("Confidence interval half size from std error=",CI_std)
+
 # ((b_upper-b_lower)/2)^2
 # as.numeric(b_upper-b)^(1/2)
 
@@ -295,7 +299,7 @@ kable_classic_2(full_width = F)
 What we are really interested in is the confidence interval on the predictions, not on the parameters.
 There is no immediate way to obtain the former from the latter.
 But we can in fact also extract the predicted variable confidence intervals from the model directly and use this.
-For information purposes we have also included prediction interval curves and values
+For information purposes we have also provided prediction interval curves and results
 
 ```{r}
 x=log(sol_panels$number_of_solar_panels)
