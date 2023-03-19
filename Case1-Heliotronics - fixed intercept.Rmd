@@ -81,6 +81,8 @@ We assume a power law relation between the cost $Y$ of the panels and the number
 Y &= AX^{b}\\
 \end{aligned}
 
+Where $Y$ represents the productions cost per unit of a product, $X$ represents the total cumulative production of a product, $b$ is the experience parameter and $A$ represents the production cost of the first unit
+
 We can turn this into a linear relationship by taking the log:
 
 \begin{aligned}
@@ -108,28 +110,48 @@ prod_curve_log
 
 ```
 
-After log transformation the data does indeed seem to follow a linear relationship.\
+After log transformation the data does indeed seem to follow a linear relationship.
 
 
 # Fitting a model
 
-## analysis of the regression
+## fitting the model
 
-Let us analyse our linear regression more quantitatively:
+Let us fit the model more precisely. 
+
+To simplify calculations of confidence intervals later in the report, we will fix the intercept for our regression. To do this we will force our regression to go through the first point in our data. This makes sense as we can see from above that there is less fluctuation around the straight line for lower values.
+
+To force the regression to through the first point we first transpose our data so that the desired fixed point $[\log(X_{0}),\log(Y_{0})]$ is on the origin 
+
+\begin{aligned}
+\log(Y') &= \log(Y) - \log(Y_{0})\\
+\log(X') &= \log(X) - \log(X_{0})
+\end{aligned}
+
+and run the regression with no intercept on $Y'$ and $X'$, to obtain an estimate of the form:
+
+\begin{aligned}
+\log(Y') &= b'\log(X')\\
+\end{aligned}
 
 ```{r linear model}
-#create a linear model to predict experience curve values
-y=log(sol_panels$manufacturing_cost)
-x=log(sol_panels$number_of_solar_panels)
+#create a linear model passing througn first point in the data to predict experience curve values 
+y_log=log(sol_panels$manufacturing_cost)
+x_log=log(sol_panels$number_of_solar_panels)
+y0_log = log(sol_panels$manufacturing_cost)[1]
+x0_log = log(sol_panels$number_of_solar_panels)[1]
 
-# lm.out <- lm(y ~ x)
-# exp_curve_pred = lm(log(manufacturing_cost) ~log(number_of_solar_panels), data = sol_panels)
-exp_curve_pred = lm(y ~ x)
+exp_curve_pred = lm(I(y_log-y0_log) ~ 0 + I(x_log-x0_log))
+```
 
+
+## analysis of the regression
+Let us analyse our linear regression more quantitatively:
+
+```{r linear model analysis}
 #check assumptions to see if model fits well
 plot(exp_curve_pred, which=c(2,1))
 summary(exp_curve_pred)
-
 ```
 
 The F-statistic is much bigger than 1 which indicates that there is indeed a relationship between our two variables. 
@@ -163,16 +185,39 @@ The learning rate (ie proportion of decrease) is:
 Learning \ Rate &= \frac{Y - \tilde Y}{Y} = 1- \frac{\tilde Y}{Y} = 1 - PR= 1 - 2^{b}\\
 \end{aligned}
 
-We can calculate $A$ and $b$ from the parameters obtained through the linear fit of the log transformed data 
+We can calculate $A$ and $b$ from the parameters obtained through the linear fit of the log transformed data. We have fitted on:
+
+\begin{aligned}
+\log(Y') &= b'\log(X')\\
+\end{aligned}
+
+We convert back to our original variables:
+
+\begin{aligned}
+\log(Y) &= (\log(Y_{0}) - b'\log(X_{0}) + b'\log(X)
+\end{aligned}
+
+If we compare to:
+
+\begin{aligned}
+\log(Y) &= \log(A) + b\log(X)\\
+\end{aligned}
+
+we see that:
+$\log(A) = \log(Y_{0}) - b'\log(X_{0})$
+and 
+$b = b'$
 
 ```{r calculate A and B}
 # get A from log-log fit intercept
-log_A <- exp_curve_pred$coefficients[1]
+intercept = y0_log - as.numeric(exp_curve_pred$coefficients[1])*(x0_log)
+
+log_A <- intercept
 A <- as.numeric(exp(log_A))
 paste("A =",A)
 
 #get b from log-log slope
-b <- as.numeric(exp_curve_pred$coefficients[2])
+b <- as.numeric(exp_curve_pred$coefficients[1])
 paste("b =",b)
 ```
 
@@ -210,16 +255,17 @@ pred_cost_table["Pred_Cost"] <- (pred_cost_table$Production_Amount^b)*A
 Let us start by plotting the prediction curve on the original, non log transformed data:
 
 ```{r plot predicted data}
+
 #create a plot to see real data vs prediction
 pred_cost_plot <- ggplot() +
-  geom_point(data = sol_panels, 
-             aes(x= number_of_solar_panels, 
-                 y = manufacturing_cost), 
+  geom_point(data = sol_panels,
+             aes(x= number_of_solar_panels,
+                 y = manufacturing_cost),
              color = "#0099F8") +
-  geom_line(data = pred_cost_table, 
-            aes(x= Production_Amount, 
-                y = Pred_Cost), 
-            color = "#7F35B2", 
+  geom_line(data = pred_cost_table,
+            aes(x= Production_Amount,
+                y = Pred_Cost),
+            color = "#7F35B2",
             size = 1)+
   labs(title = "Prediction of mean cost per unit of production", 
        x= "Production Amount", 
@@ -230,7 +276,7 @@ pred_cost_plot
 
 ```
 
-
+We see that the prediction curve does indeed go through the first data point.
 By the time production of panels for the Tessin project starts it is estimated that a cumulative amount of 4600 panels will have been produced. To estimate the cost of the 400 panels to be produced for Tessin, we want to take the mean of the predicted cost for the batches of 100 panels corresponding to these panels: 4700, 4800, 4900 and 5000.
 
 Here are the predicted costs for these batches:
@@ -255,37 +301,49 @@ We now want to be able to give a confidence interval on this mean predicted pric
 ## Method 1: using parameter confidence interval
 
 In this first method, first we extract the 95% confidence interval estimate for experience parameter $b$.
-We then use the upper and lower bounds of experience parameter $b$'s confidence interval to calculate upper and lower bound predictions. Note that we keep the intercept fixed and do not take into account its confidence interval.
+We then use the upper and lower bounds of experience parameter $b$'s confidence interval to calculate upper and lower bound predictions. The intercept is fixed and just like the predicted curve, both upper and lower bound predictions should go through the first data point.
+
+Meaning: 
+
+\begin{aligned}
+Y_{0} = A{X_{0}}^b =  {A_{upper}}{X_{0}}^{b_{upper}} = {A_{lower}}{X_{0}}^{b_{lower}}
+\end{aligned}
+
+Using the previously calculated $A$ we have:
+
+\begin{aligned}
+A_{upper/lower} = A{X_{0}}^{b-b_{upper/lower}}
+\end{aligned}
 
 ```{r}
 #calculate confidence intervals
 CI = confint(exp_curve_pred)
 
-b_upper = CI[2,2]
-b_lower = CI[2,1]
+b_upper = CI[1,2]
+b_lower = CI[1,1]
 
-#compare with standard deviation
-CI_int=b_upper-b
-std = 0.007936
-CI_std = 0.007936*1.96
-paste("Confidence interval half size=",CI_int)
-paste("Confidence interval half size from std error=",CI_std)
+#we want all cureves to go through first point so A_lower*x0^b_lower=A*x0^b so:
 
-# ((b_upper-b_lower)/2)^2
-# as.numeric(b_upper-b)^(1/2)
+#non transformed data first point:
+x0 = exp(x0_log)
+y0 = exp(y0_log)
+
+A_upper = A*x0^(b-b_upper)
+A_lower = A*x0^(b-b_lower)
 
 #add individual CI per prod level
-pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
-pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
+pred_cost_table["Upper_Bound"] <- A_upper*((pred_cost_table$Production_Amount)^b_upper)
+pred_cost_table["Lower_Bound"] <- A_lower*((pred_cost_table$Production_Amount)^b_lower)
+head(pred_cost_table,5)
 
 #plot CI regressions in same graph
-pred_cost_plot_CI <- 
-  pred_cost_plot + 
+pred_cost_plot_CI <-
+  pred_cost_plot +
   geom_line(data = pred_cost_table,
             aes(x= Production_Amount, y = Upper_Bound, color = "Experience Parameter Bounds"))+
   geom_line(data = pred_cost_table,
             aes(x= Production_Amount, y = Lower_Bound, color = "Experience Parameter Bounds"))+
-  scale_color_manual(name = "Intervals", 
+  scale_color_manual(name = "Intervals",
                      values = c("Experience Parameter Bounds" = "#00C1D5"))
 pred_cost_plot_CI
 ```
@@ -306,8 +364,9 @@ kable_classic_2(full_width = F)
 ## Method 2: using confidence bands
 
 What we are really interested in is the confidence interval on the predictions, not on the parameters.
-There is no immediate way to obtain the former from the latter.
-But we can in fact also extract the predicted variable confidence intervals from the model directly and use this.
+In general, there is no immediate way to obtain the former from the latter. But, in the special case of fixed intercept, the bounds calculated in method 1 above using the confidence interval of the slope parameter should be equal to the confidence bands given by the confidence intervals on predictions
+
+Using R we can extract the predicted variable confidence intervals from the model directly.
 For information purposes we have also provided prediction interval curves and results
 
 ```{r}
@@ -315,26 +374,27 @@ For information purposes we have also provided prediction interval curves and re
 
 newx = seq(100,5000,by = 100)
 
-pred_int_pred <- predict(exp_curve_pred, newdata=data.frame(x=log(newx)), interval="prediction",
+pred_int_pred <- predict(exp_curve_pred, newdata=data.frame(x_log=log(newx)), interval="prediction",
                          level = 0.95)
-conf_int_pred <- predict(exp_curve_pred, newdata=data.frame(x=log(newx)), interval="confidence",
+conf_int_pred <- predict(exp_curve_pred, newdata=data.frame(x_log=log(newx)), interval="confidence",
                          level = 0.95)
 
 # summary(exp_curve_pred)
-summary(conf_int_pred)
+# summary(conf_int_pred)
+head(conf_int_pred,5)
 ```
 
 ```{r}
-# log transformed data plot
-
+# 1. log transformed data plot
 ggplot() +
   geom_point(data=sol_panels,
              aes(x= log(number_of_solar_panels),
                  y = log(manufacturing_cost)),
              color = "#0099F8") +
   geom_line(data=conf_int_pred,
-            aes(x=log(newx),y=fit),color="#7F35B2", 
+            aes(x=log(newx),y=fit + y0_log),color="#7F35B2", 
             size = 1)+
+  geom_point(aes(x0_log,y0_log), color="red") +
   #upper Experience parameter bound
   geom_line(data = pred_cost_table,
             aes(x= log(Production_Amount), y = log(Upper_Bound), color = "Experience Parameter Bounds"))+
@@ -344,35 +404,43 @@ ggplot() +
   #lower confidence interval
   geom_line(
             aes(x= log(newx),
-                y = conf_int_pred[,2], color = "Confidence Intervals")) +
+                y = conf_int_pred[,2] + y0_log, color = "Confidence Intervals")) +
   #upper confidence interval
   geom_line(
             aes(x= log(newx),
-                y = conf_int_pred[,3], color = "Confidence Intervals")) +
+                y = conf_int_pred[,3] + y0_log, color = "Confidence Intervals")) +
   #lower pred interval
   geom_line(
             aes(x= log(newx),
-                y = pred_int_pred[,2], color = "Prediction Intervals")) +
+                y = pred_int_pred[,2] + y0_log, color = "Prediction Intervals")) +
   #upper pred interval
   geom_line(
             aes(x= log(newx),
-                y = pred_int_pred[,3], color = "Prediction Intervals")) +
+                y = pred_int_pred[,3] + y0_log, color = "Prediction Intervals")) +
   labs(title = "Log-log plot of Prediction of mean cost per unit of production",
        x= "log(Production Amount)",
        y = "log(Manufacturing Cost)")+
   theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold")) +
   scale_color_manual(name = "Intervals", 
                      values = c("Experience Parameter Bounds" = "#00C1D5", "Confidence Intervals" = "lightpink", "Prediction Intervals"="lightgrey"))
+```
 
+We can already see that prediction confidence intervals and slope (experience) parameter bounds are the same.
+
+let's plot the non transformed original data
+
+```{r}
 # non transformed data plot
+
 ggplot() +
   geom_point(data=sol_panels,
              aes(x= number_of_solar_panels,
                  y = manufacturing_cost),
              color = "#0099F8") +
   geom_line(data=conf_int_pred,
-            aes(x=newx,y=exp(fit)),color="#7F35B2", 
+            aes(x=newx,y=exp(fit+y0_log)),color="#7F35B2", 
             size = 1)+
+  geom_point(aes(x0,y0), color="red") +
   #upper Experience parameter bound
   geom_line(data = pred_cost_table,
             aes(x= Production_Amount, y = Upper_Bound, color = "Experience Parameter Bounds"))+
@@ -382,26 +450,25 @@ ggplot() +
   #lower confidence interval
   geom_line(
             aes(x= newx,
-                y = exp(conf_int_pred[,2]), color = "Confidence Intervals")) +
+                y = exp(conf_int_pred[,2]+y0_log), color = "Confidence Intervals")) +
   #upper confidence interval
   geom_line(
             aes(x= newx,
-                y = exp(conf_int_pred[,3]), color = "Confidence Intervals")) +
+                y = exp(conf_int_pred[,3]+y0_log), color = "Confidence Intervals")) +
   #lower pred interval
   geom_line(
             aes(x= newx,
-                y = exp(pred_int_pred[,2]), color = "Prediction Intervals")) +
+                y = exp(pred_int_pred[,2]+y0_log), color = "Prediction Intervals")) +
   #upper pred interval
   geom_line(
             aes(x= newx,
-                y = exp(pred_int_pred[,3]), color = "Prediction Intervals")) +
+                y = exp(pred_int_pred[,3]+y0_log), color = "Prediction Intervals")) +
   labs(title = "Plot of Prediction of mean cost per unit of production",
        x= "log(Production Amount)",
        y = "log(Manufacturing Cost)")+
   theme(plot.title = element_text(color = "#0099F8", size = 12, face = "bold")) +
   scale_color_manual(name = "Intervals", 
                      values = c("Experience Parameter Bounds" = "#00C1D5", "Confidence Intervals" = "lightpink", "Prediction Intervals"="lightgrey"))
-
 ```
 
 
@@ -412,14 +479,14 @@ Below is a summary of the intervals calculated with the 3 methods
 avg_values <- data.frame("Interval type" = c("Experience Parameter Bounds","Confidence Interval",
                                              "Prediction Interval"),
                         "Avg Lower Bound" = c(round(mean(pred_cost_table[47:50,4]),2),
-                                              round(mean(exp(conf_int_pred[47:50,2]),2)),
-                                              round(mean(exp(pred_int_pred[47:50,2]),2))),
+                                              round(mean(exp(conf_int_pred[47:50,2]+y0_log),2)),
+                                              round(mean(exp(pred_int_pred[47:50,2]+y0_log),2))),
                         "Avg Production" = c(round(mean(pred_cost_table[47:50,2]),2),
-                                             round(mean(exp(conf_int_pred[47:50,1]),2)),
-                                             round(mean(exp(pred_int_pred[47:50,1]),2))),
+                                             round(mean(exp(conf_int_pred[47:50,1]+y0_log),2)),
+                                             round(mean(exp(pred_int_pred[47:50,1]+y0_log),2))),
                         "Avg Upper Bound" = c(round(mean(pred_cost_table[47:50,3]),2),
-                                              round(mean(exp(conf_int_pred[47:50,3]),2)),
-                                              round(mean(exp(pred_int_pred[47:50,3]),2))))
+                                              round(mean(exp(conf_int_pred[47:50,3]+y0_log),2)),
+                                              round(mean(exp(pred_int_pred[47:50,3]+y0_log),2))))
 
 
 #display data extract
@@ -428,6 +495,6 @@ kbl() |>
 kable_classic_2(full_width = F)
 ```
 
-We notice that the confidence intervals are the smallest and that the intervals used in method 1 are the largest.
-in this particular case we would have to be careful with this result due to heteroscedasticity of the fit, and probably consider slightly larger intervals.
-We can also note that in all cases this analysis is useful because the intervals do not contain the current cost.
+These numerical results confirm that the experience parameter bounds and confidence intervals are the same (except for some rounding errors..)
+In this particular case we would have to be careful with this result due to heteroscedasticity of the fit, and probably consider slightly larger intervals.
+We can also note that in all cases this analysis is useful because none of the intervals contain the current cost.
