@@ -257,7 +257,7 @@ We now want to be able to give a confidence interval on this mean predicted pric
 In this first method, first we extract the 95% confidence interval estimate for experience parameter $b$.
 We then use the upper and lower bounds of experience parameter $b$'s confidence interval to calculate upper and lower bound predictions. Note that we keep the intercept fixed and do not take into account its confidence interval.
 
-```{r}
+```{r ci with method one}
 #calculate confidence intervals
 CI = confint(exp_curve_pred)
 
@@ -290,7 +290,7 @@ pred_cost_plot_CI <-
 pred_cost_plot_CI
 ```
 
-```{r}
+```{r summary table}
 #create summary of average values for last 400 units
 avg_values <- data.frame("Avg Lower Bound" = round(mean(pred_cost_table[47:50,4]),2),
                         "Avg Production" = round(mean(pred_cost_table[47:50,2]),2),
@@ -310,7 +310,7 @@ There is no immediate way to obtain the former from the latter.
 But we can in fact also extract the predicted variable confidence intervals from the model directly and use this.
 For information purposes we have also provided prediction interval curves and results
 
-```{r}
+```{r ci with method 2}
 # Predict confidence interval (and prediction interval)
 
 newx = seq(100,5000,by = 100)
@@ -324,7 +324,7 @@ conf_int_pred <- predict(exp_curve_pred, newdata=data.frame(x=log(newx)), interv
 summary(conf_int_pred)
 ```
 
-```{r}
+```{r plot all bounds}
 # log transformed data plot
 
 ggplot() +
@@ -407,7 +407,7 @@ ggplot() +
 
 Below is a summary of the intervals calculated with the 3 methods
 
-```{r}
+```{r table for all results}
 #create summary of average values for last 400 units using confidence interval
 avg_values <- data.frame("Interval type" = c("Experience Parameter Bounds","Confidence Interval",
                                              "Prediction Interval"),
