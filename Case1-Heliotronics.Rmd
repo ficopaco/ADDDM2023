@@ -264,16 +264,6 @@ CI = confint(exp_curve_pred)
 b_upper = CI[2,2]
 b_lower = CI[2,1]
 
-#compare with standard deviation
-CI_int=b_upper-b
-std = 0.007936
-CI_std = 0.007936*1.96
-paste("Confidence interval half size=",CI_int)
-paste("Confidence interval half size from std error=",CI_std)
-
-# ((b_upper-b_lower)/2)^2
-# as.numeric(b_upper-b)^(1/2)
-
 #add individual CI per prod level
 pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
 pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
@@ -405,6 +395,13 @@ ggplot() +
 ```
 
 
+Here are the predicted costs for these batches:
+
+```{r show data last 4 periods from prediction model}
+#show last 4 periods
+data.frame(exp(conf_int_pred[47:50,]))
+```
+
 Below is a summary of the intervals calculated with the 3 methods
 
 ```{r table for all results}
@@ -412,14 +409,14 @@ Below is a summary of the intervals calculated with the 3 methods
 avg_values <- data.frame("Interval type" = c("Experience Parameter Bounds","Confidence Interval",
                                              "Prediction Interval"),
                         "Avg Lower Bound" = c(round(mean(pred_cost_table[47:50,4]),2),
-                                              round(mean(exp(conf_int_pred[47:50,2]),2)),
-                                              round(mean(exp(pred_int_pred[47:50,2]),2))),
+                                              round(mean(exp(conf_int_pred[47:50,"lwr"]),2)),
+                                              round(mean(exp(pred_int_pred[47:50,"lwr"]),2))),
                         "Avg Production" = c(round(mean(pred_cost_table[47:50,2]),2),
-                                             round(mean(exp(conf_int_pred[47:50,1]),2)),
-                                             round(mean(exp(pred_int_pred[47:50,1]),2))),
+                                             round(mean(exp(conf_int_pred[47:50,"fit"]),2)),
+                                             round(mean(exp(pred_int_pred[47:50,"fit"]),2))),
                         "Avg Upper Bound" = c(round(mean(pred_cost_table[47:50,3]),2),
-                                              round(mean(exp(conf_int_pred[47:50,3]),2)),
-                                              round(mean(exp(pred_int_pred[47:50,3]),2))))
+                                              round(mean(exp(conf_int_pred[47:50,"upr"]),2)),
+                                              round(mean(exp(pred_int_pred[47:50,"upr"]),2))))
 
 
 #display data extract
@@ -428,6 +425,10 @@ kbl() |>
 kable_classic_2(full_width = F)
 ```
 
-We notice that the confidence intervals are the smallest and that the intervals used in method 1 are the largest.
-in this particular case we would have to be careful with this result due to heteroscedasticity of the fit, and probably consider slightly larger intervals.
+
+
+We notice there is a slight difference in the results for $Avg.Production$ between $Experience\_Parameter\_Bounds$ and the two others, this is due to rounding errors. The former was calculated "manually" using data in dataframe $pred\_cost\_table$ while the two others were given by the prediction model (see dataframe $conf\_int\_pred$), we can see that the last 4 values look the same in both cases, but there must be some small difference.
+
+We notice that the confidence intervals are the smallest and that the intervals used in method 1 are the largest. In this particular case we would have to be careful with this result due to heteroscedasticity of the fit, and probably consider slightly larger intervals.
+
 We can also note that in all cases this analysis is useful because the intervals do not contain the current cost.
