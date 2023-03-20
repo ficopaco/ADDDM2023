@@ -261,12 +261,14 @@ We then use the upper and lower bounds of experience parameter $b$'s confidence 
 #calculate confidence intervals
 CI = confint(exp_curve_pred)
 
+A_upper = exp(CI[1,2])
+A_lower = exp(CI[1,1])
 b_upper = CI[2,2]
 b_lower = CI[2,1]
 
 #add individual CI per prod level
-pred_cost_table["Upper_Bound"] <- A*(pred_cost_table$Production_Amount^b_upper)
-pred_cost_table["Lower_Bound"] <- A*(pred_cost_table$Production_Amount^b_lower)
+pred_cost_table["Upper_Bound"] <- A_upper*(pred_cost_table$Production_Amount^b_upper)
+pred_cost_table["Lower_Bound"] <- A_lower*(pred_cost_table$Production_Amount^b_lower)
 
 #plot CI regressions in same graph
 pred_cost_plot_CI <- 
