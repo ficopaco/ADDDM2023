@@ -1,0 +1,68 @@
+---
+title: "Case Study 2: Heliotronics Estimating an Experience Curve"
+author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    theme: readable
+    highlight: pygments
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+```{r cleardata, include=FALSE}
+rm(list=ls())
+```
+
+> *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
+
+------------------------------------------------------------------------
+
+```{r Import Data}
+library(data.table)
+library(corrplot) #correlation matrix plot
+library(olsrr)  #VIF and Tolerance Values
+library(dplyr)
+
+```
+
+# Data Exploration
+
+```{r}
+cel_data <- fread("Data File_Case_Study_Factor Analysis_MD.csv", sep = ",", header = T)
+
+
+#str(cel_data)
+#summary(cel_data)
+```
+
+
+```{r Clean Data}
+
+cel_data <- cel_data[,-c("ownership","intro_q", "intro_b", "intro_d", "defect1")]
+cel_data <- cel_data[,-c(57:64)]
+#str(cel_data)
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plotNormalHistogram(cel_data$qd1, main = paste("Frequency Distribution of QD1"))
+plotNormalHistogram(cel_data$sat1, main = paste("Frequency Distribution of SAT1"))
+plotNormalHistogram(cel_data$gender, main = paste("Frequency Distribution of GENDER"))
+plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of BRANDREC"))
+```
+
+```{r Correlation matrix}
+cel_data <- na.omit(cel_data)
+
+corr_matrix <- cor(cel_data[,c(7:39)])
+corrplot(as.matrix(corr_matrix))
+
+
+```
+
