@@ -479,14 +479,14 @@ Below is a summary of the intervals calculated with the 3 methods
 avg_values <- data.frame("Interval type" = c("Experience Parameter Bounds","Confidence Interval",
                                              "Prediction Interval"),
                         "Avg Lower Bound" = c(round(mean(pred_cost_table[47:50,4]),2),
-                                              round(mean(exp(conf_int_pred[47:50,2]+y0_log),2)),
-                                              round(mean(exp(pred_int_pred[47:50,2]+y0_log),2))),
+                                              round(mean(exp(conf_int_pred[47:50,"lwr"]+y0_log),2)),
+                                              round(mean(exp(pred_int_pred[47:50,"lwr"]+y0_log),2))),
                         "Avg Production" = c(round(mean(pred_cost_table[47:50,2]),2),
-                                             round(mean(exp(conf_int_pred[47:50,1]+y0_log),2)),
-                                             round(mean(exp(pred_int_pred[47:50,1]+y0_log),2))),
+                                             round(mean(exp(conf_int_pred[47:50,"fit"]+y0_log),2)),
+                                             round(mean(exp(pred_int_pred[47:50,"fit"]+y0_log),2))),
                         "Avg Upper Bound" = c(round(mean(pred_cost_table[47:50,3]),2),
-                                              round(mean(exp(conf_int_pred[47:50,3]+y0_log),2)),
-                                              round(mean(exp(pred_int_pred[47:50,3]+y0_log),2))))
+                                              round(mean(exp(conf_int_pred[47:50,"upr"]+y0_log),2)),
+                                              round(mean(exp(pred_int_pred[47:50,"upr"]+y0_log),2))))
 
 
 #display data extract

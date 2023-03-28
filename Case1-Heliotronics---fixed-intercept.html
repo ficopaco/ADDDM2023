@@ -11,7 +11,7 @@
 
 <meta name="author" content="UNIGE - GSEM - Advanced Data-Driven Decision Making" />
 
-<meta name="date" content="2023-03-19" />
+<meta name="date" content="2023-03-20" />
 
 <title>Case Study 1: Heliotronics Estimating an Experience Curve</title>
 
@@ -1797,7 +1797,7 @@ border-radius: 0px;
 Experience Curve</h1>
 <h4 class="author">UNIGE - GSEM - Advanced Data-Driven Decision
 Making</h4>
-<h4 class="date">2023-03-19</h4>
+<h4 class="date">2023-03-20</h4>
 
 </div>
 
@@ -2354,14 +2354,14 @@ prediction interval curves and results</p>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>avg_values <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="st">&quot;Interval type&quot;</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&quot;Experience Parameter Bounds&quot;</span>,<span class="st">&quot;Confidence Interval&quot;</span>,</span>
 <span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>                                             <span class="st">&quot;Prediction Interval&quot;</span>),</span>
 <span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>                        <span class="st">&quot;Avg Lower Bound&quot;</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fu">round</span>(<span class="fu">mean</span>(pred_cost_table[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">4</span>]),<span class="dv">2</span>),</span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">2</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
-<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">2</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))),</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;lwr&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;lwr&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))),</span>
 <span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>                        <span class="st">&quot;Avg Production&quot;</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fu">round</span>(<span class="fu">mean</span>(pred_cost_table[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">2</span>]),<span class="dv">2</span>),</span>
-<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>                                             <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">1</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
-<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>                                             <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">1</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))),</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>                                             <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;fit&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>                                             <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;fit&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))),</span>
 <span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>                        <span class="st">&quot;Avg Upper Bound&quot;</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="fu">round</span>(<span class="fu">mean</span>(pred_cost_table[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">3</span>]),<span class="dv">2</span>),</span>
-<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">3</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
-<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="dv">3</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))))</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(conf_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;upr&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>)),</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">round</span>(<span class="fu">mean</span>(<span class="fu">exp</span>(pred_int_pred[<span class="dv">47</span><span class="sc">:</span><span class="dv">50</span>,<span class="st">&quot;upr&quot;</span>]<span class="sc">+</span>y0_log),<span class="dv">2</span>))))</span>
 <span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a><span class="co">#display data extract</span></span>
