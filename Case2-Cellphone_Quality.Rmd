@@ -89,21 +89,13 @@ plot(PC0$values,xlab="Factor Number",
      cex.axis=1.2,
      cex.main=1.8) +abline(h=1)
 
-cd_PC1 <- psych::principal(cel_data_quests, rotate="varimax",nfactors=9, scores=TRUE)
-sort(PC1$communality)
 
-plot(PC1$values,xlab="Factor Number",
-     ylab="Eigenvalue",
-     main="Scree plot",
-     cex.lab=1.2,
-     cex.axis=1.2,
-     cex.main=1.8) +abline(h=1)
 ```
 
 
 
 ```{r TOtal Variance}
-EigenValue <- cd_PC1$values
+EigenValue <- cd_PC0$values
 
 Variance <- EigenValue / ncol(cel_data_quests) * 100
 
@@ -118,7 +110,35 @@ Total_Variance_Explained
 
 ```{r PC analysis 2}
 
-print(cd_PC1$loadings, cutoff=0.3,sort=TRUE)
+cd_PC1 <- psych::principal(cel_data_quests, rotate="varimax",nfactors=8, scores=TRUE)
+
+PC1_communalities <- data.frame(sort(cd_PC1$communality))
+PC1_communalities
+
+plot(PC1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+
+print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
+
+```
+
+
+
+```{r Regression and factor scores}
+
+cd_factors <- cbind(cel_data_quests,cd_PC1$scores)
+colnames(cd_factors)[34:41]=c("Serviceability",
+                          "Performance",
+                          "Durability",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Features",
+                          "Reliability",
+                          "Prestige")
 
 ```
 
