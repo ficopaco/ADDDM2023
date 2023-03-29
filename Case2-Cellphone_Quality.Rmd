@@ -15,10 +15,6 @@ output:
 knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
-```{r cleardata, include=FALSE}
-rm(list=ls())
-```
-
 > *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
 
 ------------------------------------------------------------------------
@@ -28,7 +24,9 @@ library(data.table)
 library(corrplot) #correlation matrix plot
 library(olsrr)  #VIF and Tolerance Values
 library(dplyr)
-
+library(rcompanion) #histograms with normal curve
+library(REdaS) #KMO and Bartlett test
+library(psych)
 ```
 
 # Data Exploration
@@ -60,9 +58,67 @@ plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of B
 ```{r Correlation matrix}
 cel_data <- na.omit(cel_data)
 
-corr_matrix <- cor(cel_data[,c(7:39)])
+cel_data_quests <- cel_data[,c(7:39)]
+
+corr_matrix <- cor(cel_data_quests)
 corrplot(as.matrix(corr_matrix))
 
+```
+
+```{r LM and VIF}
+
+KMOTEST <- KMOS(cel_data_quests)
+KMOTEST
+sort(KMOTEST$MSA)
+KMOTEST$KMO
+
+
+bart_spher(cel_data_quests)
+
+
+```
+
+```{r PC analysis 1}
+
+cd_PC0 <- psych::principal(cel_data_quests, rotate="varimax", scores=TRUE)
+
+plot(PC0$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+
+cd_PC1 <- psych::principal(cel_data_quests, rotate="varimax",nfactors=9, scores=TRUE)
+sort(PC1$communality)
+
+plot(PC1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+```
+
+
+
+```{r TOtal Variance}
+EigenValue <- cd_PC1$values
+
+Variance <- EigenValue / ncol(cel_data_quests) * 100
+
+SumVariance <- cumsum(EigenValue / ncol(cel_data_quests))
+
+Total_Variance_Explained <- cbind(EigenValue = EigenValue[EigenValue>0],
+                                  Variance = Variance[EigenValue>0],
+                                  Total_Variance = SumVariance[EigenValue>0])
+
+Total_Variance_Explained
+```
+
+```{r PC analysis 2}
+
+print(cd_PC1$loadings, cutoff=0.3,sort=TRUE)
 
 ```
 
