@@ -114,8 +114,9 @@ cd_PC1 <- psych::principal(cel_data_quests, rotate="varimax",nfactors=8, scores=
 
 PC1_communalities <- data.frame(sort(cd_PC1$communality))
 PC1_communalities
+#qd3 has the lowest communality but it is not terribly far away from the other values
 
-plot(PC1$values,xlab="Factor Number",
+plot(cd_PC1$values,xlab="Factor Number",
      ylab="Eigenvalue",
      main="Scree plot",
      cex.lab=1.2,
