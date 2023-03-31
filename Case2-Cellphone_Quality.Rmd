@@ -82,7 +82,7 @@ bart_spher(cel_data_quests)
 
 cd_PC0 <- psych::principal(cel_data_quests, rotate="varimax", scores=TRUE)
 
-plot(PC0$values,xlab="Factor Number",
+plot(cd_PC0$values,xlab="Factor Number",
      ylab="Eigenvalue",
      main="Scree plot",
      cex.lab=1.2,
@@ -130,7 +130,6 @@ print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
 
 
 ```{r Regression and factor scores}
-
 cd_factors <- cbind(cel_data_quests,cd_PC1$scores)
 colnames(cd_factors)[34:41]=c("Serviceability",
                           "Performance",
@@ -140,6 +139,60 @@ colnames(cd_factors)[34:41]=c("Serviceability",
                           "Features",
                           "Reliability",
                           "Prestige")
+```
+
+
+
+```{r}
+
+cd_oblique2 <- cel_data[,c(7:42, 48:49)]
+cd_oblique <- cel_data[, c(40:42, 48:49)]
+
+cd_oblq1 <- psych::principal(cel_data_quests, rotate="promax",nfactors=8, scores=TRUE)
+cd_oblq2 <- psych::principal(cd_oblique, rotate="promax",nfactors=2, scores=TRUE)
+
+cd_oblq1_communalities <- data.frame(sort(cd_oblq1$communality))
+cd_oblq1_communalities
+#qd3 has the lowest communality but it is not terribly far away from the other values
+
+plot(cd_oblq1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+
+print(cd_oblq1$loadings, cutoff=0.4, sort=TRUE)
+
+
+pred_table <- data.frame(cd_oblq1$scores)
+pred_table <- cbind(pred_table,cd_oblq2$scores)
+colnames(pred_table)[1:10]=c("Serviceability",
+                          "Performance",
+                          "Durability",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Features",
+                          "Reliability",
+                          "Prestige",
+                          "Willingness_to_pay",
+                          "Repurchase_Intention")
+
+```
+
+
+
+```{r}
+wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
+
+summary(wtp_model)
+
+ri_model <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
+
+summary(ri_model)
+```
+
+```{r}
 
 ```
 
