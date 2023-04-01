@@ -94,7 +94,7 @@ plot(cd_PC0$values,xlab="Factor Number",
 
 
 
-```{r TOtal Variance}
+```{r Total Variance}
 EigenValue <- cd_PC0$values
 
 Variance <- EigenValue / ncol(cel_data_quests) * 100
@@ -143,8 +143,7 @@ colnames(cd_factors)[34:41]=c("Serviceability",
 
 
 
-```{r}
-
+```{r Oblique Rotation}
 cd_oblique2 <- cel_data[,c(7:42, 48:49)]
 cd_oblique <- cel_data[, c(40:42, 48:49)]
 
@@ -180,9 +179,12 @@ colnames(pred_table)[1:10]=c("Serviceability",
 
 ```
 
+```{r Correlation of Factors}
+pred_corr_matrix <- cor(pred_table)
+corrplot(as.matrix(pred_corr_matrix))
+```
 
-
-```{r}
+```{r Regression Models}
 wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
 
 summary(wtp_model)
@@ -193,6 +195,21 @@ summary(ri_model)
 ```
 
 ```{r}
+#create subset of data per brand
+#for (i in 1:5){
+  #nam <- paste("cd_", as.character(i), sep = "")
+  #assign(nam, cel_data[cel_data$brandrec == i,])
+  
+  #print(as.data.table(nam))
+  #xx <- subset(as.data.table(nam), brandrec == i)
+  
+  #separate the variables
+  #temp_quest <- psych::principal(nam, rotate="promax",nfactors=8, scores=TRUE)
+  #temp_vars <- psych::principal(nam, rotate="promax",nfactors=2, scores=TRUE)
+}
+
+#xx <- lm(ri_1~ri_2 + brandrec=1, data = cel_data)
+
 
 ```
 
