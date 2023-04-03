@@ -92,12 +92,9 @@ corrplot(as.matrix(corr_matrix), method = "shade", order = "hclust", addrect = 1
 ```{r LM and VIF}
 KMOTEST <- KMOS(cel_data_quests)
 KMOTEST
-KMO_list <- data.table(sort(KMOTEST$MSA))
-KMO_list
-KMOTEST$KMO
 
-KMOTEST$MSA[paste("qd",1, sep="")]
-KMOTEST$MSA[1]
+KMO_val <- KMOTEST$KMO
+KMO_val
 
 KMO_list <- data.table("Item" = character(), "Score" = double())
 for(i in 1:33){
@@ -114,7 +111,10 @@ bart_spher(cel_data_quests)
 #   row_spec(color_me, bold = T, color = "white", background = "red")
 # 
 #display results
-row_spec(kable_minimal(kbl(KMO_list)), which(KMO_list[,2]>KMOTEST$KMO), bold = T, color = "white", background = "#78BE20")
+KMO_list |> 
+  kable() |> 
+  kable_minimal()
+  row_spec(which(KMO_list[,2]>KMO_val), bold = T, color = "white", background = "#78BE20")
 
 # conditionalColor <- function(x, row, columnOffset, threshold, colorLarger, colorElse) {
 #   x[row, (columnOffset+1):ncol(x)] <- cell_spec(
@@ -131,6 +131,10 @@ row_spec(kable_minimal(kbl(KMO_list)), which(KMO_list[,2]>KMOTEST$KMO), bold = T
 #   knitr::kable(escape = FALSE) |> 
 #   kable_styling(bootstrap_options = "striped")
 
+
+cc <-getwd()
+opts_knit$set.root.dir <- cc
+opts_knit$get()
 ```
 
 # Principal Axis Factoring
