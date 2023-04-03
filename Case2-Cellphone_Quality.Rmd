@@ -96,6 +96,14 @@ KMO_list <- data.table(sort(KMOTEST$MSA))
 KMO_list
 KMOTEST$KMO
 
+KMOTEST$MSA[paste("qd",1, sep="")]
+KMOTEST$MSA[1]
+
+KMO_list <- data.table("Item" = character(), "Score" = double())
+for(i in 1:33){
+  KMO_list<- rbindlist(list(KMO_list, list(paste("qd",i, sep=""), KMOTEST$MSA[i])))
+}
+
 bart_spher(cel_data_quests)
 
 #color_me <- which(KMO_list < KMOTEST$KMO)
@@ -106,7 +114,7 @@ bart_spher(cel_data_quests)
 #   row_spec(color_me, bold = T, color = "white", background = "red")
 # 
 #display results
-row_spec(kable_minimal(kbl(KMO_list)), 3, bold = T, color = "white", background = "#78BE20")
+row_spec(kable_minimal(kbl(KMO_list)), which(KMO_list[,2]>KMOTEST$KMO), bold = T, color = "white", background = "#78BE20")
 
 # conditionalColor <- function(x, row, columnOffset, threshold, colorLarger, colorElse) {
 #   x[row, (columnOffset+1):ncol(x)] <- cell_spec(
