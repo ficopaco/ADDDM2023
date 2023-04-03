@@ -127,6 +127,19 @@ print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
 
 ```
 
+```{r Total Variance}
+EigenValue1 <- cd_PC1$values
+
+Variance1 <- EigenValue1 / ncol(cel_data_quests) * 100
+
+SumVariance1 <- cumsum(EigenValue1 / ncol(cel_data_quests))
+
+Total_Variance_Explained1 <- cbind(EigenValue = EigenValue1[EigenValue1>0],
+                                  Variance = Variance1[EigenValue1>0],
+                                  Total_Variance = SumVariance[EigenValue1>0])
+
+Total_Variance_Explained1
+```
 
 
 ```{r Regression and factor scores}
@@ -148,7 +161,12 @@ cd_oblique2 <- cel_data[,c(7:42, 48:49)]
 cd_oblique <- cel_data[, c(40:42, 48:49)]
 
 cd_oblq1 <- psych::principal(cel_data_quests, rotate="promax",nfactors=8, scores=TRUE)
+cd_oblq3 <- psych::principal(cel_data_quests[,-c(4,23)], rotate="promax",nfactors=8, scores=TRUE)
 cd_oblq2 <- psych::principal(cd_oblique, rotate="promax",nfactors=2, scores=TRUE)
+
+
+print(cd_oblq3$loadings, cutoff=0.4, sort=TRUE)
+
 
 cd_oblq1_communalities <- data.frame(sort(cd_oblq1$communality))
 cd_oblq1_communalities
@@ -166,6 +184,13 @@ print(cd_oblq1$loadings, cutoff=0.4, sort=TRUE)
 
 pred_table <- data.frame(cd_oblq1$scores)
 pred_table <- cbind(pred_table,cd_oblq2$scores)
+
+
+pred_table2 <- data.frame(cd_oblq3$scores)
+pred_table2 <- cbind(pred_table,cd_oblq2$scores)
+pred_table2 <- cbind(pred_table,cel_data_quests[,c(4,23)])
+
+
 colnames(pred_table)[1:10]=c("Serviceability",
                           "Performance",
                           "Durability",
@@ -177,21 +202,56 @@ colnames(pred_table)[1:10]=c("Serviceability",
                           "Willingness_to_pay",
                           "Repurchase_Intention")
 
+colnames(pred_table2)[1:10]=c("Serviceability",
+                          "Performance",
+                          "Features",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Durability",
+                          "Reliability",
+                          "Conformance",
+                          "Willingness_to_pay",
+                          "Repurchase_Intention")
+
 ```
 
 ```{r Correlation of Factors}
 pred_corr_matrix <- cor(pred_table)
 corrplot(as.matrix(pred_corr_matrix))
+
+pred_corr_matrix <- cor(pred_table2)
+corrplot(as.matrix(pred_corr_matrix))
 ```
 
 ```{r Regression Models}
+pred_table <- as.data.table(scale(pred_table))
+pred_table2 <- as.data.table(scale(pred_table2))
+
 wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
 
+wtp_model3 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance + qd4 + qd23, data = pred_table2)
+
+wtp_model4 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability, data = pred_table2)
+
+wtp_model2 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance, data = pred_table2)
+
 summary(wtp_model)
+summary(wtp_model2)
+summary(wtp_model3)
+summary(wtp_model4)
 
 ri_model <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
 
+ri_model3 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance + qd4 + qd23, data = pred_table2)
+
+ri_model4 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability, data = pred_table2)
+
+ri_model2 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance, data = pred_table2)
+
 summary(ri_model)
+summary(ri_model2)
+summary(ri_model3)
+summary(ri_model4)
 ```
 
 ```{r}
@@ -206,7 +266,7 @@ summary(ri_model)
   #separate the variables
   #temp_quest <- psych::principal(nam, rotate="promax",nfactors=8, scores=TRUE)
   #temp_vars <- psych::principal(nam, rotate="promax",nfactors=2, scores=TRUE)
-}
+#}
 
 #xx <- lm(ri_1~ri_2 + brandrec=1, data = cel_data)
 
