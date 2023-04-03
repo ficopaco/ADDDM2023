@@ -101,61 +101,43 @@ for(i in 1:33){
   KMO_list<- rbindlist(list(KMO_list, list(paste("qd",i, sep=""), KMOTEST$MSA[i])))
 }
 
-bart_spher(cel_data_quests)
-
-#color_me <- which(KMO_list < KMOTEST$KMO)
-
-# KMO_list |> 
-#   kable() |> 
-#   kable_styling() |> 
-#   row_spec(color_me, bold = T, color = "white", background = "red")
-# 
-#display results
+#Highlighted items that are less than the total KMO value. However many are below this value.
+#None are lower than the 0.4 threshold that is indicated in the slides
 KMO_list |> 
+  setorder(cols = "Score") |> 
   kable() |> 
   kable_minimal() |> 
-  row_spec(which(KMO_list[,2]>KMO_val), bold = T, color = "white", background = "#78BE20")
-
-# conditionalColor <- function(x, row, columnOffset, threshold, colorLarger, colorElse) {
-#   x[row, (columnOffset+1):ncol(x)] <- cell_spec(
-#     x[row, (columnOffset+1):ncol(x)], 
-#     color = ifelse(as.numeric(x[row, (columnOffset+1):ncol(x)]) < threshold, 
-#                    colorLarger, 
-#                    colorElse))
-#   return(x)
-# }
-# conditionalColor(KMO_list, 
-#                  row = which(KMO_list[ , 1] > KMOTEST$KMO), 
-#                  columnOffset = 2, 
-#                  threshold = 100, colorLarger = "green", colorElse = "red") |>
-#   knitr::kable(escape = FALSE) |> 
-#   kable_styling(bootstrap_options = "striped")
+  row_spec(which(KMO_list[,2]<KMO_val), bold = T, color = "white", background = "#78BE20")
 
 
-cc <-getwd()
-opts_knit$set.root.dir <- cc
-opts_knit$get()
+bart_spher(cel_data_quests)
+
 ```
 
 # Principal Axis Factoring
 
+
 ```{r}
+#tried to find the best amount of factors in PAF.
+#Always around 5 which is lower than the ideal 8.
+
 best_factors <- data.table("Factors" = double(), "Amount" = double())
 best_eigen <- data.table("Index" = 1:31)
 
 for(i in 1:31){
-  print(i)
   temp_paf <- psych::fa(data.table(scale(cel_data_quests[,-c(4,23)])), nfactors = i, rotate = "varimax", scores = T)
-  #xx <- length(which(temp_paf$values > 1))
+  fact_len <- length(which(temp_paf$values > 1))
   #xx <- as.numeric(temp_paf$communalities)
-  xx <- temp_paf$BIC
+  fact_err <- temp_paf$BIC
   best_eigen <- best_eigen[,paste("Factor_", i, sep=""):= temp_paf$values]
   #best_eigen <- rbindlist(list(best_eigen,list(i,temp_paf$values)))
-  best_factors <- rbindlist(list(best_factors,list(i, xx)))
+  best_factors <- rbindlist(list(best_factors,list(i, fact_len)))
 }
 
 ggplot(best_factors, aes(Factors,Amount))+
-  geom_line()+
+  geom_line(color = "#0099F8", size = 0.5)+
+  ggtitle("Eigen Value behavior by Model")+
+  labs(xlab="Model", ylab = "Amount of factors")+
   theme_classic()
 
 best_eigen_melt <- melt(best_eigen ,  id.vars = "Index", variable.name = "Series")
@@ -164,10 +146,12 @@ ggplot(best_eigen_melt, aes(Index, value))+
   geom_line(aes(color = Series))+
   xlim(0,12)+
   geom_hline(yintercept=1)+
+  ggtitle("Amount of Factors with Eigen Value above 1")+
+  labs(xlab="Amount of Factors", ylab = "Eigen Value")+
   theme_classic()
 
 
-paf1 <- psych::fa(cel_data_quests, nfactors = 8, rotate = "Varimax", scores = T, fm = "pa")
+paf1 <- psych::fa(cel_data_quests, nfactors = 5, rotate = "Varimax", scores = T)
 summary(paf1)
 
 
@@ -190,16 +174,60 @@ pafTotal_Variance_Explained <- cbind(EigenValue = pafEigenValue[pafEigenValue>0]
                                   Variance = pafVariance[pafEigenValue>0],
                                   Total_Variance = pafSumVariance[pafEigenValue>0])
 
-pafTotal_Variance_Explained
+pafTotal_Variance_Explained |> 
+  kable() |> 
+  kable_minimal()
+```
+
+
+```{r}
+print(paf1$loadings, cutoff=0.4, sort=TRUE)
+#Talk about groupings not being precise with assignment from groups in the PDF.
+#Mention the variables being predicted by multiple variables
+#mention the need to improve the groupings
 ```
 
 
 
 # Principal Component Analysis
 
-```{r PC analysis 1}
+```{r PC analysis}
+best_factors_pc <- data.table("Factors" = double(), "Amount" = double())
+best_eigen_pc <- data.table("Index" = 1:33)
 
-cd_PC0 <- psych::principal(cel_data_quests, nfactors = 5, rotate="varimax", scores=TRUE)
+for(i in 1:33){
+  temp_paf_pc <- psych::principal(data.table(scale(cel_data_quests)), nfactors = i, rotate = "varimax", scores = T)
+  fact_len_pc <- length(which(temp_paf_pc$values > 1))
+  best_eigen_pc <- best_eigen_pc[,paste("Factor_", i, sep=""):= temp_paf_pc$values]
+  best_factors_pc <- rbindlist(list(best_factors_pc,list(i, fact_len_pc)))
+}
+
+best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
+  geom_line(color = "#0099F8", size = 0.5)+
+  ggtitle("Eigen Value behavior by Model")+
+  labs(xlab="Model", ylab = "Amount of factors")+
+  theme_classic()
+best_factors_plot
+
+best_eigen_melt <- melt(best_eigen_pc ,  id.vars = "Index", variable.name = "Series")
+
+best_eigen_plot <- ggplot(best_eigen_melt, aes(Index, value))+
+  geom_line(aes(color = Series))+
+  xlim(0,12)+
+  geom_hline(yintercept=1)+
+  ggtitle("Amount of Factors with Eigen Value above 1")+
+  labs(xlab="Amount of Factors", ylab = "Eigen Value")+
+  theme_classic()
+best_eigen_plot
+
+
+#they all produce 8 groups. Eigen values are the same for every group. with or without qd4 and qd23
+```
+
+
+```{r PC analysis 1}
+cd_PC1 <- psych::principal(cel_data_quests[,-c(4,23)], nfactors = 8, rotate="varimax", scores=TRUE)
+length(which(cd_PC1$values >1))
 
 plot(cd_PC0$values,xlab="Factor Number",
      ylab="Eigenvalue",
@@ -208,13 +236,13 @@ plot(cd_PC0$values,xlab="Factor Number",
      cex.axis=1.2,
      cex.main=1.8) +abline(h=1)
 
-
+#comment on how without qd4 and qd23 the ideal eigen value is 7 factors
 ```
 
 
 
 ```{r Total Variance}
-EigenValue <- cd_PC0$values
+EigenValue <- cd_PC1$values
 
 Variance <- EigenValue / ncol(cel_data_quests) * 100
 
@@ -224,41 +252,27 @@ Total_Variance_Explained <- cbind(EigenValue = EigenValue[EigenValue>0],
                                   Variance = Variance[EigenValue>0],
                                   Total_Variance = SumVariance[EigenValue>0])
 
-Total_Variance_Explained
+Total_Variance_Explained |> 
+  kable() |> 
+  kable_minimal()
 ```
 
 ```{r PC analysis 2}
 
-cd_PC1 <- psych::principal(cel_data_quests, rotate="varimax",nfactors=8, scores=TRUE)
-
 PC1_communalities <- data.frame(sort(cd_PC1$communality))
-PC1_communalities
-#qd3 has the lowest communality but it is not terribly far away from the other values
+PC1_communalities |> 
+  kable() |> 
+  kable_minimal()
+  
+#qd23 has the lowest communality but it is not terribly far away from the other values
+#qd4 is low but not the worst
 
-plot(cd_PC1$values,xlab="Factor Number",
-     ylab="Eigenvalue",
-     main="Scree plot",
-     cex.lab=1.2,
-     cex.axis=1.2,
-     cex.main=1.8) +abline(h=1)
 
-print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
+pc_loads <- print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
 
 ```
 
-```{r Total Variance}
-EigenValue1 <- cd_PC1$values
 
-Variance1 <- EigenValue1 / ncol(cel_data_quests) * 100
-
-SumVariance1 <- cumsum(EigenValue1 / ncol(cel_data_quests))
-
-Total_Variance_Explained1 <- cbind(EigenValue = EigenValue1[EigenValue1>0],
-                                  Variance = Variance1[EigenValue1>0],
-                                  Total_Variance = SumVariance[EigenValue1>0])
-
-Total_Variance_Explained1
-```
 
 
 ```{r Regression and factor scores}
