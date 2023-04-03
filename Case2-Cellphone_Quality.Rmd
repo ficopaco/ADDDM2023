@@ -113,7 +113,7 @@ bart_spher(cel_data_quests)
 #display results
 KMO_list |> 
   kable() |> 
-  kable_minimal()
+  kable_minimal() |> 
   row_spec(which(KMO_list[,2]>KMO_val), bold = T, color = "white", background = "#78BE20")
 
 # conditionalColor <- function(x, row, columnOffset, threshold, colorLarger, colorElse) {
