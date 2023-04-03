@@ -21,12 +21,16 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 ```{r Import Data}
 library(data.table)
+library(ggplot2)
 library(corrplot) #correlation matrix plot
 library(olsrr)  #VIF and Tolerance Values
 library(dplyr)
 library(rcompanion) #histograms with normal curve
 library(REdaS) #KMO and Bartlett test
 library(psych)
+library(gridExtra)
+library(kableExtra)
+library(knitr)
 ```
 
 # Data Exploration
@@ -45,9 +49,30 @@ cel_data <- fread("Data File_Case_Study_Factor Analysis_MD.csv", sep = ",", head
 cel_data <- cel_data[,-c("ownership","intro_q", "intro_b", "intro_d", "defect1")]
 cel_data <- cel_data[,-c(57:64)]
 #str(cel_data)
+cel_data <- na.omit(cel_data)
+
+cel_data_quests <- cel_data[,c(7:39)]
 ```
 
+
+
 ```{r}
+# plots <- lapply (1:33, function(i){
+#   x <- cel_data_quests[,i]
+#   
+#   ggplot(data.frame(x), aes(x)) +
+#     geom_histogram(fill = "red", color = "red", bandwidth = 2)+
+#     geom_density(aes(y=0.85*..count..), color = "black", adjust = 4, size = 1) +
+#     ggtitle(paste("Question",i))+
+#     xlab("Scores")+
+#     ylab("Count")+
+#     xlim(0,7) +
+#     theme_classic()
+# })
+# 
+# grid.arrange(brobs = plots, ncol = 5)
+
+
 par(mfrow = c(2, 2))
 plotNormalHistogram(cel_data$qd1, main = paste("Frequency Distribution of QD1"))
 plotNormalHistogram(cel_data$sat1, main = paste("Frequency Distribution of SAT1"))
@@ -55,32 +80,114 @@ plotNormalHistogram(cel_data$gender, main = paste("Frequency Distribution of GEN
 plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of BRANDREC"))
 ```
 
-```{r Correlation matrix}
-cel_data <- na.omit(cel_data)
 
-cel_data_quests <- cel_data[,c(7:39)]
+
+```{r Correlation matrix}
 
 corr_matrix <- cor(cel_data_quests)
-corrplot(as.matrix(corr_matrix))
+corrplot(as.matrix(corr_matrix), method = "shade", order = "hclust", addrect = 10, tl.col ="black", tl.cex = 0.80)
 
 ```
 
 ```{r LM and VIF}
-
 KMOTEST <- KMOS(cel_data_quests)
 KMOTEST
-sort(KMOTEST$MSA)
+KMO_list <- data.table(sort(KMOTEST$MSA))
+KMO_list
 KMOTEST$KMO
-
 
 bart_spher(cel_data_quests)
 
+#color_me <- which(KMO_list < KMOTEST$KMO)
+
+# KMO_list |> 
+#   kable() |> 
+#   kable_styling() |> 
+#   row_spec(color_me, bold = T, color = "white", background = "red")
+# 
+#display results
+row_spec(kable_minimal(kbl(KMO_list)), 3, bold = T, color = "white", background = "#78BE20")
+
+# conditionalColor <- function(x, row, columnOffset, threshold, colorLarger, colorElse) {
+#   x[row, (columnOffset+1):ncol(x)] <- cell_spec(
+#     x[row, (columnOffset+1):ncol(x)], 
+#     color = ifelse(as.numeric(x[row, (columnOffset+1):ncol(x)]) < threshold, 
+#                    colorLarger, 
+#                    colorElse))
+#   return(x)
+# }
+# conditionalColor(KMO_list, 
+#                  row = which(KMO_list[ , 1] > KMOTEST$KMO), 
+#                  columnOffset = 2, 
+#                  threshold = 100, colorLarger = "green", colorElse = "red") |>
+#   knitr::kable(escape = FALSE) |> 
+#   kable_styling(bootstrap_options = "striped")
 
 ```
 
+# Principal Axis Factoring
+
+```{r}
+best_factors <- data.table("Factors" = double(), "Amount" = double())
+best_eigen <- data.table("Index" = 1:31)
+
+for(i in 1:31){
+  print(i)
+  temp_paf <- psych::fa(data.table(scale(cel_data_quests[,-c(4,23)])), nfactors = i, rotate = "varimax", scores = T)
+  #xx <- length(which(temp_paf$values > 1))
+  #xx <- as.numeric(temp_paf$communalities)
+  xx <- temp_paf$BIC
+  best_eigen <- best_eigen[,paste("Factor_", i, sep=""):= temp_paf$values]
+  #best_eigen <- rbindlist(list(best_eigen,list(i,temp_paf$values)))
+  best_factors <- rbindlist(list(best_factors,list(i, xx)))
+}
+
+ggplot(best_factors, aes(Factors,Amount))+
+  geom_line()+
+  theme_classic()
+
+best_eigen_melt <- melt(best_eigen ,  id.vars = "Index", variable.name = "Series")
+
+ggplot(best_eigen_melt, aes(Index, value))+
+  geom_line(aes(color = Series))+
+  xlim(0,12)+
+  geom_hline(yintercept=1)+
+  theme_classic()
+
+
+paf1 <- psych::fa(cel_data_quests, nfactors = 8, rotate = "Varimax", scores = T, fm = "pa")
+summary(paf1)
+
+
+plot(paf1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+```
+
+```{r Total Variance}
+pafEigenValue <- paf1$values
+
+pafVariance <- pafEigenValue / ncol(cel_data_quests) * 100
+
+pafSumVariance <- cumsum(pafEigenValue / ncol(cel_data_quests))
+
+pafTotal_Variance_Explained <- cbind(EigenValue = pafEigenValue[pafEigenValue>0],
+                                  Variance = pafVariance[pafEigenValue>0],
+                                  Total_Variance = pafSumVariance[pafEigenValue>0])
+
+pafTotal_Variance_Explained
+```
+
+
+
+# Principal Component Analysis
+
 ```{r PC analysis 1}
 
-cd_PC0 <- psych::principal(cel_data_quests, rotate="varimax", scores=TRUE)
+cd_PC0 <- psych::principal(cel_data_quests, nfactors = 5, rotate="varimax", scores=TRUE)
 
 plot(cd_PC0$values,xlab="Factor Number",
      ylab="Eigenvalue",
@@ -154,7 +261,7 @@ colnames(cd_factors)[34:41]=c("Serviceability",
                           "Prestige")
 ```
 
-
+# Oblique Rotation
 
 ```{r Oblique Rotation}
 cd_oblique2 <- cel_data[,c(7:42, 48:49)]
@@ -222,6 +329,8 @@ corrplot(as.matrix(pred_corr_matrix))
 pred_corr_matrix <- cor(pred_table2)
 corrplot(as.matrix(pred_corr_matrix))
 ```
+
+# Regression Analysis
 
 ```{r Regression Models}
 pred_table <- as.data.table(scale(pred_table))
