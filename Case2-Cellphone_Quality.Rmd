@@ -19,7 +19,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 ------------------------------------------------------------------------
 
-```{r Import Data}
+```{r Load Libraries}
 library(data.table)
 library(ggplot2)
 library(corrplot) #correlation matrix plot
@@ -35,58 +35,57 @@ library(caret)
 
 # Data Exploration
 
-```{r}
+```{r Import and Clean data}
+#import data
 cel_data <- fread("Data File_Case_Study_Factor Analysis_MD.csv", sep = ",", header = T)
 
-#str(cel_data)
-#summary(cel_data)
+#explore data structure
+str(cel_data)
+summary(cel_data)
 
-cel_data_quests <- cel_data[,c(9:41)]
-cel_data_quests <- na.omit(cel_data_quests)
+#clean data table
+cel_data <- cel_data[, -c("ownership", "intro_q", "intro_b", "intro_d", "defect1")]
+cel_data <- cel_data[, -c(57:64)]
+cel_data <- na.omit(cel_data)
+
+#create data table only for questions
+cel_data_quests <- cel_data[, 7:39]
 ```
 
 
-```{r}
-# plots <- lapply (1:33, function(i){
-#   x <- cel_data_quests[,i]
-#   
-#   ggplot(data.frame(x), aes(x)) +
-#     geom_histogram(fill = "red", color = "red", bandwidth = 2)+
-#     geom_density(aes(y=0.85*..count..), color = "black", adjust = 4, size = 1) +
-#     ggtitle(paste("Question",i))+
-#     xlab("Scores")+
-#     ylab("Count")+
-#     xlim(0,7) +
-#     theme_classic()
-# })
-# 
-# grid.arrange(brobs = plots, ncol = 5)
-
-
-par(mfrow = c(2, 2))
-plotNormalHistogram(cel_data$qd1, main = paste("Frequency Distribution of QD1"))
-plotNormalHistogram(cel_data$qd23, main = paste("Frequency Distribution of QD23"))
-plotNormalHistogram(cel_data$wtp1, main = paste("Frequency Distribution of WTP1"))
-plotNormalHistogram(cel_data$ri1, main = paste("Frequency Distribution of RI1"))
-plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of BRANDREC"))
+```{r Histograms}
+#plot histograms of certain variables
+par(mfrow = c(2, 3))
+plotNormalHistogram(cel_data$qd1, main = paste("Distribution of QD1"), xlab = "Values", col = "#0099F8")
+plotNormalHistogram(cel_data$qd23, main = paste("istribution of QD23"), xlab = "Values", col = "#0099F8")
+plotNormalHistogram(cel_data$wtp1, main = paste("Distribution of WTP1"), xlab = "Values", col = "#0099F8")
+plotNormalHistogram(cel_data$ri1, main = paste("Distribution of RI1"), xlab = "Values", col = "#0099F8")
+plotNormalHistogram(cel_data$brandrec, main = paste("Distribution of BRANDREC"), xlab = "Values", col = "#0099F8")
 ```
 
 
 
 ```{r Correlation matrix}
-
+#plot correlation matrix adjusting parameters to see previously identified groupings
 corr_matrix <- cor(cel_data_quests)
-corrplot(as.matrix(corr_matrix), method = "shade", order = "hclust", addrect = 10, tl.col ="black", tl.cex = 0.80)
+corrplot(as.matrix(corr_matrix), 
+         method = "shade", 
+         order = "hclust", 
+         addrect = 10, 
+         tl.col ="black", 
+         tl.cex = 0.80)
 
 ```
 
-```{r LM and VIF}
+```{r KMO and Bartlett}
+#calculate KMO and MSA errors
 KMOTEST <- KMOS(cel_data_quests)
 KMOTEST
 
 KMO_val <- KMOTEST$KMO
 KMO_val
 
+#loop to extract and create data table
 KMO_list <- data.table("Item" = character(), "Score" = double())
 for(i in 1:33){
   KMO_list<- rbindlist(list(KMO_list, list(paste("qd",i, sep=""), KMOTEST$MSA[i])))
@@ -94,46 +93,49 @@ for(i in 1:33){
 
 #Highlighted items that are less than the total KMO value. However many are below this value.
 #None are lower than the 0.4 threshold that is indicated in the slides
+#Display table
 KMO_list |> 
   setorder(cols = "Score") |> 
   kable() |> 
   kable_minimal() |> 
   row_spec(which(KMO_list[,2]<KMO_val), bold = T, color = "white", background = "#78BE20")
 
-
+#check Bartlett-Test
 bart_spher(cel_data_quests)
 # this tests that there is enough correlation to be able to create factors.
-#Null hypothesis is that there is no correlation (all are uncorrelated) and the pvalue belo 0.05 indicates that they are
+#Null hypothesis is that there is no correlation (all are uncorrelated) and the pvalue below 0.05 indicates that they are
+
+
+#mention how the first two are lower than the rest but not particularly with regards to thresholds seen in class.
 ```
 
 # Principal Axis Factoring
 
 
-```{r}
+```{r PAF Best models}
 #tried to find the best amount of factors in PAF.
 #Always around 5 which is lower than the ideal 8.
 
+#find best combination of factors
 best_factors <- data.table("Factors" = double(), "Amount" = double())
 best_eigen <- data.table("Index" = 1:31)
 
 for(i in 1:31){
   temp_paf <- psych::fa(data.table(scale(cel_data_quests[,-c(4,23)])), nfactors = i, rotate = "varimax", scores = T)
   fact_len <- length(which(temp_paf$values > 1))
-  #xx <- as.numeric(temp_paf$communalities)
-  fact_err <- temp_paf$BIC
   best_eigen <- best_eigen[,paste("Factor_", i, sep=""):= temp_paf$values]
-  #best_eigen <- rbindlist(list(best_eigen,list(i,temp_paf$values)))
   best_factors <- rbindlist(list(best_factors,list(i, fact_len)))
 }
 
+#plot the amount of factors with eigen value >1 for each nfactors up to 33
 ggplot(best_factors, aes(Factors,Amount))+
   geom_line(color = "#0099F8", size = 0.5)+
   ggtitle("Eigen Value behavior by Model")+
   labs(xlab="Model", ylab = "Amount of factors")+
   theme_classic()
 
+#Plot the behavior of eigen values per amount of factors per model
 best_eigen_melt <- melt(best_eigen ,  id.vars = "Index", variable.name = "Series")
-
 ggplot(best_eigen_melt, aes(Index, value))+
   geom_line(aes(color = Series))+
   xlim(0,12)+
@@ -142,42 +144,45 @@ ggplot(best_eigen_melt, aes(Index, value))+
   labs(xlab="Amount of Factors", ylab = "Eigen Value")+
   theme_classic()
 
-
+#calculate the eigen values with best number of factors
 paf1 <- psych::fa(cel_data_quests, nfactors = 5, rotate = "Varimax", scores = T)
 summary(paf1)
 
-
-plot(paf1$values,xlab="Factor Number",
+#display Scree-plot
+plot(paf1$values,
+     xlab="Factor Number",
      ylab="Eigenvalue",
      main="Scree plot",
      cex.lab=1.2,
      cex.axis=1.2,
-     cex.main=1.8) +abline(h=1)
+     cex.main=1.8,
+     col = "#0099F8",
+     pch = 19) +abline(h=1, col = "#7F35B2")
 
 #PAF always suggests 5 factors. However based on how they line up it does not make logical sense. 
 ```
 
 
 
-```{r Total Variance}
+```{r PAF Total Variance}
+#calculate total variance using PAF with nfators = 5
 pafEigenValue <- paf1$values
-
 pafVariance <- pafEigenValue / ncol(cel_data_quests) * 100
-
 pafSumVariance <- cumsum(pafEigenValue / ncol(cel_data_quests))
-
 pafTotal_Variance_Explained <- cbind(EigenValue = pafEigenValue[pafEigenValue>0],
                                   Variance = pafVariance[pafEigenValue>0],
                                   Total_Variance = pafSumVariance[pafEigenValue>0])
-
+#display table
 pafTotal_Variance_Explained |> 
   kable() |> 
   kable_minimal()
 ```
 
 
-```{r}
+```{r PAF Loadings}
+#Show lodings for PAF using nfactors = 5
 print(paf1$loadings, cutoff=0.4, sort=TRUE)
+
 #Talk about groupings not being precise with assignment from groups in the PDF.
 #Mention the variables being predicted by multiple variables
 #mention the need to improve the groupings
@@ -188,6 +193,7 @@ print(paf1$loadings, cutoff=0.4, sort=TRUE)
 # Principal Component Analysis
 
 ```{r PC analysis}
+#find best combination of factors
 best_factors_pc <- data.table("Factors" = double(), "Amount" = double())
 best_eigen_pc <- data.table("Index" = 1:33)
 
@@ -198,6 +204,7 @@ for(i in 1:33){
   best_factors_pc <- rbindlist(list(best_factors_pc,list(i, fact_len_pc)))
 }
 
+#plot the amount of factors with eigen value >1 for each nfactors up to 33
 best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
   geom_line(color = "#0099F8", size = 0.5)+
   ggtitle("Eigen Value behavior by Model")+
@@ -205,8 +212,8 @@ best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
   theme_classic()
 best_factors_plot
 
+#calculate the eigen values with best number of factors
 best_eigen_melt <- melt(best_eigen_pc ,  id.vars = "Index", variable.name = "Series")
-
 best_eigen_plot <- ggplot(best_eigen_melt, aes(Index, value))+
   geom_line(aes(color = Series))+
   xlim(0,12)+
@@ -222,32 +229,34 @@ best_eigen_plot
 
 
 ```{r PC analysis 1}
+#calculate the eigen values with best number of factors
 cd_PC1 <- psych::principal(cel_data_quests[,-c(4,23)], nfactors = 8, rotate="varimax", scores=TRUE)
 length(which(cd_PC1$values >1))
 
+#display Scree-plot
 plot(cd_PC1$values,xlab="Factor Number",
      ylab="Eigenvalue",
      main="Scree plot",
      cex.lab=1.2,
      cex.axis=1.2,
-     cex.main=1.8) +abline(h=1)
+     cex.main=1.8,
+     col = "#0099F8",
+     pch = 19) +abline(h=1, col = "#7F35B2")
 
 #comment on how without qd4 and qd23 the ideal eigen value is 7 factors
 ```
 
 
 
-```{r Total Variance}
+```{r PCA Total Variance}
+#calculate total variance using PAF with nfactors = 8
 EigenValue <- cd_PC1$values
-
 Variance <- EigenValue / ncol(cel_data_quests) * 100
-
 SumVariance <- cumsum(EigenValue / ncol(cel_data_quests))
-
 Total_Variance_Explained <- cbind(EigenValue = EigenValue[EigenValue>0],
                                   Variance = Variance[EigenValue>0],
                                   Total_Variance = SumVariance[EigenValue>0])
-
+#display table
 Total_Variance_Explained |> 
   kable() |> 
   kable_minimal()
