@@ -30,7 +30,7 @@ library(REdaS) #KMO and Bartlett test
 library(psych)
 library(gridExtra)
 library(kableExtra)
-library(knitr)
+library(caret)
 ```
 
 # Data Exploration
@@ -356,6 +356,15 @@ pred_corr_matrix <- cor(pred_table2)
 corrplot(as.matrix(pred_corr_matrix))
 ```
 
+```{r}
+hist(pred_table$Willingness_to_pay)
+hist(pred_table$Repurchase_Intention)
+summary(pred_table$Willingness_to_pay)
+summary(pred_table$Repurchase_Intention)
+
+```
+
+
 # Regression Analysis
 
 ```{r Regression Models}
@@ -388,6 +397,58 @@ summary(ri_model2)
 summary(ri_model3)
 summary(ri_model4)
 ```
+
+
+
+
+```{r}
+# #dummy variables must be created manually, hence convert to factors
+# ucExtract$Fuel_Type <- as.factor(usedCars$Fuel_Type)
+# 
+# #create dummy variables list
+# ucExtDummies <- dummyVars(~ ., data=ucExtract)
+# 
+# #create new table with dummy variables
+# ucExtract <- as.data.frame(predict(ucExtDummies, newdata = usedCars))
+
+cel_data$brandrec <- as.factor(cel_data$brandrec)
+str(cel_data$brandrec)
+
+dummies <- dummyVars(~., data = cel_data)
+
+Ext_cel_data <- as.data.frame(predict(dummies, newdata = cel_data))
+
+pred_table <- cbind(pred_table, Ext_cel_data[,61:65])
+pred_table2 <- cbind(pred_table, Ext_cel_data[,61:65])
+
+
+```
+
+```{r}
+pred_table_1 <- pred_table[brandrec.1==1,]
+pred_table_2 <- pred_table[brandrec.2 ==1]
+pred_table_3 <- pred_table[brandrec.3 ==1]
+pred_table_4 <- pred_table[brandrec.4 ==1]
+pred_table_5 <- pred_table[brandrec.5 ==1]
+
+wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_1)
+
+wtp_model2 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_2)
+
+wtp_model3 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_3)
+
+wtp_model4 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_4)
+
+wtp_model5 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_5)
+
+summary(wtp_model)
+summary(wtp_model2)
+summary(wtp_model3)
+summary(wtp_model4)
+summary(wtp_model5)
+```
+
+
 
 ```{r}
 #create subset of data per brand
