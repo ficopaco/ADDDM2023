@@ -38,22 +38,12 @@ library(caret)
 ```{r}
 cel_data <- fread("Data File_Case_Study_Factor Analysis_MD.csv", sep = ",", header = T)
 
-
 #str(cel_data)
 #summary(cel_data)
+
+cel_data_quests <- cel_data[,c(9:41)]
+cel_data_quests <- na.omit(cel_data_quests)
 ```
-
-
-```{r Clean Data}
-
-cel_data <- cel_data[,-c("ownership","intro_q", "intro_b", "intro_d", "defect1")]
-cel_data <- cel_data[,-c(57:64)]
-#str(cel_data)
-cel_data <- na.omit(cel_data)
-
-cel_data_quests <- cel_data[,c(7:39)]
-```
-
 
 
 ```{r}
@@ -75,8 +65,9 @@ cel_data_quests <- cel_data[,c(7:39)]
 
 par(mfrow = c(2, 2))
 plotNormalHistogram(cel_data$qd1, main = paste("Frequency Distribution of QD1"))
-plotNormalHistogram(cel_data$sat1, main = paste("Frequency Distribution of SAT1"))
-plotNormalHistogram(cel_data$gender, main = paste("Frequency Distribution of GENDER"))
+plotNormalHistogram(cel_data$qd23, main = paste("Frequency Distribution of QD23"))
+plotNormalHistogram(cel_data$wtp1, main = paste("Frequency Distribution of WTP1"))
+plotNormalHistogram(cel_data$ri1, main = paste("Frequency Distribution of RI1"))
 plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of BRANDREC"))
 ```
 
@@ -111,7 +102,8 @@ KMO_list |>
 
 
 bart_spher(cel_data_quests)
-
+# this tests that there is enough correlation to be able to create factors.
+#Null hypothesis is that there is no correlation (all are uncorrelated) and the pvalue belo 0.05 indicates that they are
 ```
 
 # Principal Axis Factoring
@@ -161,7 +153,11 @@ plot(paf1$values,xlab="Factor Number",
      cex.lab=1.2,
      cex.axis=1.2,
      cex.main=1.8) +abline(h=1)
+
+#PAF always suggests 5 factors. However based on how they line up it does not make logical sense. 
 ```
+
+
 
 ```{r Total Variance}
 pafEigenValue <- paf1$values
@@ -229,7 +225,7 @@ best_eigen_plot
 cd_PC1 <- psych::principal(cel_data_quests[,-c(4,23)], nfactors = 8, rotate="varimax", scores=TRUE)
 length(which(cd_PC1$values >1))
 
-plot(cd_PC0$values,xlab="Factor Number",
+plot(cd_PC1$values,xlab="Factor Number",
      ylab="Eigenvalue",
      main="Scree plot",
      cex.lab=1.2,
@@ -290,8 +286,9 @@ colnames(cd_factors)[34:41]=c("Serviceability",
 # Oblique Rotation
 
 ```{r Oblique Rotation}
-cd_oblique2 <- cel_data[,c(7:42, 48:49)]
-cd_oblique <- cel_data[, c(40:42, 48:49)]
+
+cd_oblique <- na.omit(cel_data[, c(43:45, 51:52)])
+#cd_oblique2 <- cel_data[,c(9:41, 43:45, 51:52)]
 
 cd_oblq1 <- psych::principal(cel_data_quests, rotate="promax",nfactors=8, scores=TRUE)
 cd_oblq3 <- psych::principal(cel_data_quests[,-c(4,23)], rotate="promax",nfactors=8, scores=TRUE)
@@ -468,4 +465,5 @@ summary(wtp_model5)
 
 
 ```
+
 
