@@ -423,22 +423,18 @@ corrplot(as.matrix(pred_corr_matrix))
 # Regression Analysis
 
 ```{r Regression Models}
-#Standardize the variables
-pred_table_scl <- as.data.table(scale(pred_table))
-pred_table2_scl <- as.data.table(scale(pred_table2))
-
 #predict Willingness_to_pay according to the 2 proposed models
-wtp_model <- lm(Will_to_pay ~ Serviceability + Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_scl)
+wtp_model <- lm(Will_to_pay ~ Serviceability + Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
 
-wtp_model2 <- lm(Will_to_pay ~ Serviceability + Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + qd4 + qd23, data = pred_table2_scl)
+wtp_model2 <- lm(Will_to_pay ~ Serviceability + Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + qd4 + qd23, data = pred_table2)
 
 summary(wtp_model)
 summary(wtp_model2)
 
 #predict Repurchase_Intention according to the 2 proposed models
-ri_model <- lm(Repur_Intent ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_scl)
+ri_model <- lm(Repur_Intent ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
 
-ri_model2 <- lm(Repur_Intent ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability +qd4 + qd23, data = pred_table2_scl)
+ri_model2 <- lm(Repur_Intent ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability +qd4 + qd23, data = pred_table2)
 
 summary(ri_model)
 summary(ri_model2)
