@@ -254,7 +254,7 @@ This would indicate that we should probably remove qd4 and qd23 from our factor 
 
 ```{r PAF Loadings}
 #Show lodings for PAF using nfactors = 5
-print(paf1$loadings, cutoff=0.4, sort=TRUE)
+print(paf1$loadings, cutoff=0.3, sort=TRUE)
 
 #Talk about groupings not being precise with assignment from groups in the PDF.
 #Mention the variables being predicted by multiple variables
@@ -282,6 +282,25 @@ As so, the loadings match the questions as follow:
   
 </details> 
 
+Standard practice is to consider loadings over 0.7 as essentially 1 and loadings under 0.3 as essentially 0 in which case don't take them into account (they explain less than 10% of the variance of a variable)
+
+There are various criterion for choosing which variables to keep or exclude in the litterature
+
+"A “crossloading” item is an item that loads at .32 or higher on two or more factors. The researcher needs to decide whether a crossloading item should be dropped from the analysis"
+https://scholarworks.umass.edu/cgi/viewcontent.cgi?article=1156&context=pare
+
+This condition is verified for questions 15, 6, 8, 25, 17, 18 and 32
+
+"It is recommended that satisfactory variables (a) load onto their primary factor above 0.40, (b) load onto alter-native factors below 0.30, and (c) demonstrate a difference of 0.20 between their primary and alternative factor loadings. The current article dubs this the .40–.30–.20 rule"
+https://www.tandfonline.com/doi/epdf/10.1080/10447318.2015.1087664?needAccess=true&role=button
+
+This condition is not verified for questions 15, 6, 8, 25, 17, 18 and 32
+
+"A factor with fewer than three items is generally weak and unstable; 5 or more strongly loading items (.50 or better) are desirable and indicate a solid factor"
+https://scholarworks.umass.edu/cgi/viewcontent.cgi?article=1156&context=pare
+
+Here all factors respect this condition
+
 
 ## Principal Component Analysis
 
@@ -298,7 +317,7 @@ for(i in 1:33){
 }
 ```
 
-### Step 4: Determine the number of factors
+### Step 4: Determine the number of components
 
 #### Kaiser criterion
 
@@ -502,6 +521,9 @@ This makes sense as the durability of the phone relates both to software related
 
 
 # Oblique Rotation
+
+
+Substantial factor correlations (at least .3) speak for the usage of an oblique rotation technique
 
 ```{r Oblique Rotation}
 #create table for new prediction factors
