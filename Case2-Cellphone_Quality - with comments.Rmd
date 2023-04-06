@@ -178,8 +178,6 @@ ggplot(best_eigen_melt, aes(Index, value))+
   theme_classic()
 ```
 
-The scree plot criterion suggests we should retain 5 factors
-
 
 ### Run PAF again with optimal number of factors
 
@@ -209,6 +207,8 @@ plot(paf1$values,
 ```
 
 As expected the scree plot hasn't changed as they represent the eigenvalues of the "reduced correlation matrix" or the correlation matrix with the diagonals replaced by the initial values (which can be the coefficients of determination $R_{i}^{2}$ but there can be other choices)
+
+The scree plot is harder to interpret. We note that the elbow could suggests we should retain either 1, 3, 5 or 8 factors. 
 
 
 #### Total variance
@@ -286,20 +286,22 @@ Standard practice is to consider loadings over 0.7 as essentially 1 and loadings
 
 There are various criterion for choosing which variables to keep or exclude in the litterature
 
+As mentioned above questions 4 and 23 loadings are all below 0.3 which suggests we should try excluding them from the analysis
+
 "A “crossloading” item is an item that loads at .32 or higher on two or more factors. The researcher needs to decide whether a crossloading item should be dropped from the analysis"
 https://scholarworks.umass.edu/cgi/viewcontent.cgi?article=1156&context=pare
 
-This condition is verified for questions 15, 6, 8, 25, 17, 18 and 32
+This condition is verified for questions 15, 6, 8, 25, 17, 18 and 32. This suggests we could potentially exclude them from the analysis
 
 "It is recommended that satisfactory variables (a) load onto their primary factor above 0.40, (b) load onto alter-native factors below 0.30, and (c) demonstrate a difference of 0.20 between their primary and alternative factor loadings. The current article dubs this the .40–.30–.20 rule"
 https://www.tandfonline.com/doi/epdf/10.1080/10447318.2015.1087664?needAccess=true&role=button
 
-This condition is not verified for questions 15, 6, 8, 25, 17, 18 and 32
+This condition is not verified for questions 15, 6, 8, 25, 17, 18 and 32. This suggests we could potentially exclude them from the analysis
 
 "A factor with fewer than three items is generally weak and unstable; 5 or more strongly loading items (.50 or better) are desirable and indicate a solid factor"
 https://scholarworks.umass.edu/cgi/viewcontent.cgi?article=1156&context=pare
 
-Here all factors respect this condition
+Here all factors respect this condition, this may also be an indication to consider more factors
 
 
 ## Principal Component Analysis
@@ -321,7 +323,7 @@ for(i in 1:33){
 
 #### Kaiser criterion
 
-```{r PCA Best models}
+```{r PCA kaiser}
 #plot the amount of factors with eigen value >1 for each nfactors up to 33
 best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
   geom_line(color = "#0099F8", size = 0.5)+
@@ -330,6 +332,8 @@ best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
   theme_classic()
 best_factors_plot
 ```
+
+The kaiser criterion suggests we need to retain 8 factors
 
 #### Scree plots
 
@@ -374,6 +378,8 @@ plot(cd_PC1$values,xlab="Factor Number",
 
 As expected the scree plot hasn't changed as they represent the eigenvalues of the "correlation matrix"
 
+The scree plot is harder to interpret. We note that the elbow could suggests we should retain either 1, 3, 8 or 10 factors. 
+
 #### Total variance
 
 ```{r PCA Total Variance}
@@ -390,6 +396,7 @@ Total_Variance_Explained |>
   kable_minimal()
 ```
 
+We see that the first 8 eigenvectors explain about 80% of the variance. 
 
 #### Communalities
 
@@ -404,12 +411,18 @@ PC1_communalities |>
 #qd4 is low but not the worst
 ```
 
+"it is advisable to remove any item with a communality score less than 0.2 (Child, 2006)"
+https://www.open-access.bcu.ac.uk/6076/1/__staff_shares_storage%20500mb_Library_ID112668_Stats%20Advisory_New%20Statistics%20Workshops_18ExploratoryFactorAnalysis_ExploratoryFactorAnalysis4.pdf
+
+"Communalities of 0.25, 0.275 and 0.30 are common minimum communalities used to eliminate measures in an analysis"
+https://www.sciencedirect.com/topics/mathematics/communality
+
 Here all communalities are acceptable, based on this there is no indication that we should remove any question from the Principle Component Analysis
 
 #### factor loadings
 
 ```{r PCA loadings}
-pc_loads <- print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
+pc_loads <- print(cd_PC1$loadings, cutoff=0.3, sort=TRUE)
 ```
 
 In this case , the loadings match the questions as follow:
@@ -479,7 +492,7 @@ Excluding these two indicators has substantially raised communalities for all re
 
 #### factor loadings
 
-```{r PCA best model exclude qd4 and qd23}
+```{r PCA no qd4 and qd23 loadings}
 #show loadings
 pc_loads <- print(cd_PC_minus4_23$loadings, cutoff=0.4, sort=TRUE)
 ```
