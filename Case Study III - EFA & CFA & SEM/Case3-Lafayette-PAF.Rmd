@@ -1,0 +1,2260 @@
+---
+title: "Case Study 3: Galeries Lafayette"
+author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
+date: "`r Sys.Date()`"
+abstract:
+  Identify the key drivers of brand equity for Galeries Lafayette based on a questionnaire mailed to 5000 customers and returned by 600 of them
+output: 
+  html_document: 
+    theme: readable
+    highlight: pygments
+    toc: true
+    toc_depth: 6
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    number_sections: T
+---
+
+```{css, echo=FALSE}
+  #TOC {
+    max-width: fit-content;
+    white-space: nowrap;
+  }
+  
+  div:has(> #TOC) {
+    display: flex;
+    flex-direction: row-reverse;
+}
+```
+
+> *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
+
+------------------------------------------------------------------------
+
+# Setup
+
+```{r knitr setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) #display source code in output
+knitr::opts_chunk$set(message = FALSE, warning = FALSE) #display warnings and error messages
+```
+
+```{r cleardata, include=FALSE}
+rm(list=ls()) # clear the data
+```
+
+```{r}
+# options(scipen=999) #prevent scientific notation
+# options(scipen=-999) #encourage scientific notation
+options(scipen=0) #encourage scientific notation neutral?
+```
+
+```{r}
+# kable table layout options
+# do not display NAs and only 2 digits
+opts <- options(knitr.kable.NA = '') #knitr.table.format = "latex"
+
+# define table styling options
+stable <- function(data, digits = 2) {
+  knitr::kable(data, digits=digits) |> 
+    # kable_styling(c("striped", "condensed"))
+    kable_paper(full_width = F)
+}
+```
+
+## libraries
+
+
+```{r activate libraries}
+# modelling
+library(psych) #factor analysis tools (PAF PAF)
+library(lavaan) #causal analysis
+library(lm.beta) # add standarized regression coeffs
+
+# stats
+library(nortest) #Kolmogorov-Smirnov-Test
+library(corrplot) #correlation matrix plot
+library(olsrr)  #VIF and Tolerance Values
+library(pastecs) # provides function stat.desc
+library(REdaS) #Bartelett's Test
+
+# plotting & formatting
+library(ggplot2) #better graphs
+library(patchwork) # provides wrap_plots for multiplotting 
+# library(gridExtra) #provides multiplotting functionality
+# library(ggpubr) #provides ggarrange for multiplotting (patchwork better though)
+library(semPlot) #for visualization of path diagrams (SEM)
+library(lavaanPlot) #for visualization of path diagrams (SEM)
+# library(rcompanion)   #Histogram and Normal Curve
+library(kableExtra) #makes nice tables
+
+# generic
+library(dplyr) #useful data manip functions like arrange, distinct, rename etc included in fpp3
+library(stringr) # provides string manip functions like str_split_fixed 
+library(Hmisc) #describe function that describes features of dataframes
+library(data.table) # creating and manipulating datatables
+library(knitr) #rmarkdown tools not sure why useful
+library(parameters) #get model outputs in table form (good for making tabs)
+```
+
+## Load data
+
+```{r load datasets}
+survey <- read.csv("Case Study III_Structural Equation Modeling.csv")
+labels <- read.csv("Variables and Labels_Galeries Lafayette.csv")
+
+dim(survey)
+# head(labels)
+```
+
+
+
+
+## labels
+```{r}
+#Make labels more readable
+#create copy of label column without variable code
+labels["Category"] <- sub("[^-]*\\s-","",labels[["Label"]]) 
+# labels["Category"] <- sub(".*\\s-","",labels[["Label"]])
+# labels
+
+#split this new column (category) into category and short label
+labels[c("Category","Label_short")] <- str_split_fixed(labels[["Category"]],"\\?\\s\\s|\\s-", n=2)
+# labels[20:25,c("Category","Label_short")]
+labels[,c("Variable","Category","Label_short")] |>
+  stable()
+```
+
+
+
+## Clean and handle missing data
+
+```{r}
+# # omit all unanswered
+# filter_all(survey, all_vars(. != 999))
+# filter_all(survey, any_vars(. %in% c(999)))
+# 
+# filter_all(select(survey,1:22,"SAT_1"), all_vars(. != 999))
+# filter_all(select(survey,1:22,"SAT_1"), any_vars(. %in% c(999)))
+# 
+# filter_all(data_img_EFA, all_vars(. != 999))
+# filter_all(ges, any_vars(. %in% c(999)))
+```
+
+
+```{r}
+# delete variables unused in analysis (see case study instructions): 
+survey <- survey |> select(-c("C_CR2", "SAT_P1", "SAT_P2", "SAT_P3", "SAT_P4", "SAT_P5", "SAT_P6", "TRU_1", "TRU_2", "TRU_3"))
+
+# replace missing data (999) with NA
+survey <- data.frame(sapply(survey,function(x) ifelse((x==999),NA,as.numeric(x))))
+```
+
+
+
+## Explore Data
+
+
+# Dimensions by which Galeries Lafayette is perceived
+
+
+## ROUND 1: Exploratory factor analysis
+
+### Variable selection for EFA
+
+```{r}
+# excluded image variables (in the first round of EFA we don't exclude any image variables...)
+exclude=c() 
+
+# the full survey data (includes dependent and independent variables) with excluded image variables (in this first round of EFA we don't exclude anything)
+survey_excl_img <- survey |> select(-exclude)
+
+# the data we will use for EFA (images)
+data_img_EFA <- survey_excl_img[1:(22-length(exclude))]
+```
+
+
+### handle missing data
+
+```{r}
+# delete missing data (delete listwise)
+data_img_EFA <- na.omit(data_img_EFA)
+
+dim(survey)
+dim(survey_excl_img)
+dim(data_img_EFA)
+```
+
+### Check adequacy of correlation Matrix
+
+#### correlation matrix
+
+
+```{r}
+#plot correlation matrix adjusting parameters to see previously identified groupings
+corr_matrix <- cor(data_img_EFA)
+corrplot(as.matrix(corr_matrix), 
+         method = "color", #col = c("white","white","white","white","white", "lightgrey", "darkgrey", "black"),
+         order = "hclust", addrect = 10, rect.col="black", # rect.col="red",
+         addCoef.col = 'black', number.cex = .5,
+         tl.col ="black", 
+         tl.cex = 0.80, 
+         )
+```
+
+Variables to look out for going forward:
+
+- Images 9 and 11 are alone 
+
+- Pairs of images: (17,18), cluster exclusively together, have a very high correlation and similar correlation profiles meaning we might only want to keep one of them. Similar comment to a lesser degree for (6,7) and (16,19).
+
+#### Bartlett’s Test
+
+```{r}
+bart_spher(data_img_EFA)
+```
+
+The Bartlett Test tests the hypothesis that the sample originates from a population, where all variables are uncorrelated. This would not be good for factor analysis, we want this hypothesis to be rejected meaning p-value < 5%. 
+
+In our case we see that it is indeed rejected and that the data is not uncorrelated.
+
+#### KMO
+
+
+```{r}
+KMOTEST=KMOS(data_img_EFA)
+print(KMOTEST, sort=T)
+```
+
+The KMO of `r KMOTEST$KMO` is above 0.6 which indicates the data is well suited for factor anlysis.
+
+
+#### Anti-image Correlation
+
+
+
+```{r}
+MSA_list <- data.table("Item"=names(KMOTEST$MSA), "MSA"=as.numeric(KMOTEST$MSA))
+
+# Sort table
+MSA_list<- MSA_list |> 
+  setorder(cols = "MSA")
+
+# Display table
+MSA_list |> 
+  stable() |>
+  row_spec(which(MSA_list[,2]<0.5), bold = T, color = "white", background = "#78BE20")
+```
+
+
+
+Variables with MSA values above 0.5 are suited for factor analysis. Presence of items with low MSA’s (<0.5) could also indicate that an important topic hasn’t been well covered in the questionnaire. 
+
+All variables have MSA above 0.5
+
+
+### Select method: PAF
+
+#### Extract factors
+
+
+```{r}
+EFA_PAF0 <- psych::fa(data_img_EFA, rotate="varimax", scores=TRUE)
+# note: by default number of factors = 1 if it is not specified
+```
+
+
+##### Scree plot
+
+```{r}
+#display Scree-plot
+plot(EFA_PAF0$e.values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8,
+     col = "#0099F8",
+     pch = 19) 
+abline(h=1, col = "#7F35B2")
+```
+
+
+##### Kaiser Criterion
+
+```{r}
+EFA_PAF0_kaiser_nb <- length(which(EFA_PAF0$e.values > 1))
+EFA_PAF0_kaiser_nb
+```
+
+The Kaiser criterion suggests we should retain factors with eigenvalues bigger than 1.
+
+There are `r EFA_PAF0_kaiser_nb` factors satisfying this condition.
+
+##### Total Variance Explained
+
+
+```{r}
+#calculate total variance (does not change if number of factors change)
+EFA_PAF0_EigenValue <- EFA_PAF0$e.values
+EFA_PAF0_Variance <- EFA_PAF0_EigenValue / ncol(data_img_EFA) * 100
+EFA_PAF0_SumVariance <- cumsum(EFA_PAF0_EigenValue / ncol(data_img_EFA))
+EFA_PAF0_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out=length(EFA_PAF0_EigenValue[EFA_PAF0_EigenValue>0])),
+                                          EigenValue = EFA_PAF0_EigenValue[EFA_PAF0_EigenValue>0],
+                                          Variance = EFA_PAF0_Variance[EFA_PAF0_EigenValue>0],
+                                          Total_Variance = EFA_PAF0_SumVariance[EFA_PAF0_EigenValue>0])
+#display table
+EFA_PAF0_Total_Variance_Explained |> 
+  stable() 
+```
+
+
+
+With 6 factors we would explain `r EFA_PAF0_Total_Variance_Explained[[6,"Total_Variance"]]*100`% of total variance.
+
+With 7 factors we would explain `r EFA_PAF0_Total_Variance_Explained[[7,"Total_Variance"]]*100`% of total variance.
+
+
+
+```{r}
+# test eigenvalue calculation
+factorloadings = EFA_PAF0$loadings[,1] # loadings 1st factor (default is nfactors = 1)
+Eigenvalue = sum(factorloadings^2)
+Eigenvalue
+```
+
+
+#### Determine number of factors to retain
+
+```{r}
+# select nb of factors to test
+nf = c(5,6,7,8)
+```
+
+
+#### PAF orthogonal Varimax with n factors
+
+
+```{r}
+# perform multiple PAFs one for each factor number in selection
+EFA_PAFn = list()
+
+i=1
+for (n in nf) {
+  # EFA_PAFn[[i]] <- n
+  EFA_PAFn[[i]] <- psych::fa(data_img_EFA, rotate="varimax", scores=TRUE, nfactors = n)
+  i=i+1
+}
+names(EFA_PAFn) <- nf
+
+```
+
+
+
+##### Communalities {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors
+
+for (i in 1:length(nf)) {
+
+  cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+    EFA_PAFn_communalities <- data.table("Item"=names(EFA_PAFn[[i]]$communality), 
+                             "Communality"=as.numeric(EFA_PAFn[[i]]$communality))
+
+    # Sort table
+    EFA_PAFn_communalities <- EFA_PAFn_communalities |>
+      setorder(cols = "Communality")
+    
+    # Display table
+    kbl <- EFA_PAFn_communalities |> 
+              stable() |>
+              row_spec(which(EFA_PAFn_communalities[,1]<.3), bold = T, color = "white", background = "#78BE20")
+    
+    print(kbl)
+    cat("\n\n")
+
+    # test communality calculation
+    variableloading = EFA_PAFn[[i]]$loadings["Im9",] # loadings 1st variable
+    communality = sum(variableloading^2)
+    print(paste0("Communality for Im9 =", communality))
+    cat("\n")
+    
+}
+```
+
+
+##### {.unlisted .unnumbered}
+
+Typically we should think about excluding variables with communalities below 0.3.
+
+Based on the above, no variable should be excluded.
+
+##### Factor loadings {.tabset}
+
+
+```{r, results='asis'}
+
+# loadings for all selected number of factors
+
+for (i in 1:length(nf)) {
+  
+cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+      # print(EFA_PAFn[[i]]$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(EFA_PAFn[[i]], loadings=T, threshold = 0.3, summary=T)))
+     kbl <- model_parameters(EFA_PAFn[[i]], loadings=T, threshold = 0.3, summary=T) |>
+        stable()
+     print(kbl)
+      
+cat("\n\n")
+}
+```
+
+
+##### {.unlisted .unnumbered}
+
+Factor loadings:
+
+* Number of items per factor >=3
+  + this condition is respected in all cases except when we have 8 factors. We eliminate the 8 factor solution
+
+* 0.40–0.30–0.20 rule: satisfactory variables (a) load onto their primary factor above 0.40, (b) load onto alter-native factors below 0.30, and (c) demonstrate a difference of 0.20 between their primary and alternative factor loadings. 
+  + 5 factor solution:
+    - this condition is not respected for many variables. We eliminate the 5 factor solution
+  + 6 factor solution:
+    - this condition is not respected for: Im6, Im7, Im9, (Im11), (Im15), Im16, Im17, Im18, Im19 where Im17 and Im18 are particularly spread out
+  + 7 factor solution:
+    - this condition is not respected for: Im7, Im8, Im9, Im15, Im16, Im19 where Im16 and Im19 are particularly spread out
+
+Based on the above we will prefer the **7 factor solution** but we will no doubt have to exclude some variables. 
+
+Looking at the correlation matrix, we saw that variables Im16 and Im19 were highly correlated, we probably only need to exclude one of the two, Im19 has the lower communality of the two so we might consider eliminating that one.
+
+Similarly Im17 and Im18 are highly correlated we might want to eliminate Im18 which has the lowest communality of the two, but they have adequately high loadings in the 7 factor solution so not a priority. 
+
+We might also exclude Im9 and Im15 as their communality is on the lower end and their loadings are spread out and quite weak. Also Im9 is problematic in both the 6 and 7 factor solution
+
+
+Thurstone simple structure criteria:
+
+* Each row (variable) of the factor pattern matrix should have at least one zero
+
+* Each column (factor) should have at least r zero elements, and the zeros for one factor should be unique from the zeros for the other factors
+
+* For every pair of columns (factors), there should be at least r variables with a zero coefficient in one column and a non-zero coefficient in the other
+
+* When r > 3 every pair of columns (factors), should contain a large proportion of variables with zeros in both columns
+
+* For every pair of columns (factors), there should be only a small proportion of variables with non-zeros in both columns
+
+
+
+#### PAF oblique Promax with n factors
+
+
+```{r}
+# perform multiple PAFs one for each factor number in selection
+EFA_PAFn_obl = list()
+
+i=1
+for (n in nf) {
+  # EFA_PAFn_obl[[i]] <- n
+  EFA_PAFn_obl[[i]] <- psych::fa(data_img_EFA, rotate="promax", scores=TRUE, nfactors = n)
+  i=i+1
+}
+names(EFA_PAFn_obl) <- nf
+
+length(EFA_PAFn_obl)
+```
+
+
+
+##### Communalities {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors
+
+for (i in 1:length(nf)) {
+
+  cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+    EFA_PAFn_obl_communalities <- data.table("Item"=names(EFA_PAFn_obl[[i]]$communality), 
+                             "Communality"=as.numeric(EFA_PAFn_obl[[i]]$communality))
+
+    # Sort table
+    EFA_PAFn_obl_communalities <- EFA_PAFn_obl_communalities |>
+      setorder(cols = "Communality")
+    
+    # Display table  
+    kbl <- EFA_PAFn_obl_communalities |> 
+              stable() |> 
+              row_spec(which(EFA_PAFn_obl_communalities[,1]<.3), bold = T, color = "white", background = "#78BE20")
+    
+    print(kbl)
+    cat("\n\n")
+
+    # test communality calculation
+    variableloading = EFA_PAFn_obl[[i]]$loadings["Im9",] # loadings 1st variable
+    communality = sum(variableloading^2)
+    print(paste0("Communality for Im9 =", communality))
+    cat("\n")
+    
+}
+```
+
+
+##### {.unlisted .unnumbered}
+
+
+##### Factor loadings {.tabset}
+
+```{r, results='asis'}
+# loadings for all selected number of factors
+
+for (i in 1:length(nf)) {
+  
+cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+      # print(EFA_PAFn_obl[[i]]$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(EFA_PAFn_obl[[i]], loadings=T, threshold = 0.3, summary=T)))
+     kbl <- model_parameters(EFA_PAFn_obl[[i]], loadings=T, threshold = 0.3, summary=T) |>
+        stable()
+     print(kbl)
+      
+cat("\n\n")
+}
+```
+
+7 factors: exclude 9, 15, 16, 19
+6 factors: exclude 16, 17, 18, 19, 
+5 factors: exclude 17, 18
+
+
+##### {.unlisted .unnumbered}
+
+
+
+
+## ROUND 2 : Exploratory factor analysis round 2
+
+  
+
+### Variable selection for EFA
+
+```{r}
+# # perform multiple variable selections
+# 
+# exclude <- list(c("Im1","Im2","Im16", "Im19","Im15","Im9"),
+#              c("Im3","Im4","Im9", "Im15","Im11"))
+# 
+# survey_excl_img2 = list()
+# data_img_EFA2 = list()
+# 
+# for (i in 1:length(exclude)){
+#   survey_excl_img2[[i]] <- survey |> select(-exclude[[i]])
+#   data_img_EFA2[[i]] <- survey_excl_img2[[i]][1:(22-length(exclude[[i]]))]
+#   # print(survey_excl_img2[[i]])
+# }
+# 
+# # survey_excl_img2[[1]]
+# # survey_excl_img2[[2]]
+# data_img_EFA2[[1]]
+# data_img_EFA2[[2]]
+```
+
+
+```{r}
+# excluded image variables
+# candidates for 7 factors: "Im9",("Im11"),"Im15", "Im19", "Im16"
+# candidates for 6 factors: "Im16","Im9", "Im19", ("Im11"), ("Im15"), ("Im18"),"Im17", "Im6"
+
+exclude=c("Im9","Im15","Im8") # "Im16", "Im19","Im9","Im11","Im15"
+
+# the full survey data (includes dependent and independent variables) with excluded image variables
+survey_excl_img2 <- survey |> select(-exclude) 
+
+# the data we will use for EFA (images)
+data_img_EFA2 <- survey_excl_img2[1:(22-length(exclude))]
+```
+
+The excluded variables correspond to the following:
+
+```{r}
+excludedvars <- filter(labels, Variable %in% exclude)[c("Variable","Label_short")] 
+
+excludedvars |>
+  stable()
+```
+
+### handle missing data
+
+```{r}
+# delete missing data
+data_img_EFA2 <- na.omit(data_img_EFA2)
+
+dim(survey)
+dim(survey_excl_img2)
+dim(data_img_EFA2)
+```
+
+
+### Check adequacy of correlation Matrix
+
+#### correlation matrix
+
+
+```{r}
+#plot correlation matrix adjusting parameters to see previously identified groupings
+corr_matrix <- cor(data_img_EFA2)
+corrplot(as.matrix(corr_matrix), 
+         method = "color", #col = c("white","white","white","white","white", "lightgrey", "darkgrey", "black"),
+         order = "hclust", addrect = 10, rect.col="black", # rect.col="red",
+         addCoef.col = 'black', number.cex = .5,
+         tl.col ="black", 
+         tl.cex = 0.80,
+         )
+```
+
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+Variables to look out for going forward:
+- Images 9 and 11 are alone 
+- Pairs of images: (17,18), cluster exclusively together, have a very high correlation and similar correlation profiles meaning we might only want to keep one of them. Similar comment to a lesser degree for (6,7) and (16,19).
+
+#### Bartlett’s Test
+
+```{r}
+bart_spher(data_img_EFA2)
+```
+
+The Bartlett Test tests the hypothesis that the sample originates from a population, where all variables are uncorrelated. This would not be good for factor analysis, we want this hypothesis to be rejected meaning p-value < 5%. 
+
+In our case we see that it is indeed rejected and that the data is not uncorrelated.
+
+#### KMO
+
+
+```{r}
+KMOTEST=KMOS(data_img_EFA2)
+print(KMOTEST, sort=T)
+```
+
+The KMO of `r KMOTEST$KMO` is above 0.6 which indicates the data is well suited for factor anlysis.
+
+
+#### Anti-image Correlation
+
+
+```{r}
+MSA_list <- data.table("Item"=names(KMOTEST$MSA), "MSA"=as.numeric(KMOTEST$MSA))
+
+#Display table
+MSA_list<- MSA_list |> 
+  setorder(cols = "MSA")
+  
+MSA_list |> 
+  stable() |> 
+  row_spec(which(MSA_list[,2]<0.5), bold = T, color = "white", background = "#78BE20")
+```
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+Variables with MSA values above 0.5 are suited for factor analysis. Presence of items with low MSA’s (<0.5) could also indicate that an important topic hasn’t been well covered in the questionnaire. 
+
+All variables have MSA above 0.5
+
+
+### Select method: PAF
+
+#### Extract factors
+
+
+```{r}
+EFA_PAF0 <- psych::fa(data_img_EFA2, rotate="varimax", scores=TRUE)
+# note: by default number of factors = 1 if it is not specified
+```
+
+
+##### Scree plot
+
+
+
+```{r}
+#display Scree-plot
+plot(EFA_PAF0$e.values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8,
+     col = "#0099F8",
+     pch = 19) 
+abline(h=1, col = "#7F35B2")
+```
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+
+##### Kaiser Criterion
+
+```{r}
+EFA_PAF0_kaiser_nb <- length(which(EFA_PAF0$e.values > 1))
+EFA_PAF0_kaiser_nb
+```
+
+The Kaiser criterion suggests we should retain factors with eigenvalues bigger than 1.
+
+There are `r EFA_PAF0_kaiser_nb` factors satisfying this condition.
+
+##### Total Variance Explained
+
+```{r}
+#calculate total variance (does not change if number of factors change)
+EFA_PAF0_EigenValue <- EFA_PAF0$e.values
+EFA_PAF0_Variance <- EFA_PAF0_EigenValue / ncol(data_img_EFA2) * 100
+EFA_PAF0_SumVariance <- cumsum(EFA_PAF0_EigenValue / ncol(data_img_EFA2))
+EFA_PAF0_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out=length(EFA_PAF0_EigenValue[EFA_PAF0_EigenValue>0])),
+                                          EigenValue = EFA_PAF0_EigenValue[EFA_PAF0_EigenValue>0],
+                                          Variance = EFA_PAF0_Variance[EFA_PAF0_EigenValue>0],
+                                          Total_Variance = EFA_PAF0_SumVariance[EFA_PAF0_EigenValue>0])
+#display table
+EFA_PAF0_Total_Variance_Explained |> 
+  stable()
+```
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+With 6 factors we would explain `r EFA_PAF0_Total_Variance_Explained[[6,"Total_Variance"]]*100`% of total variance.
+
+With 7 factors we would explain `r EFA_PAF0_Total_Variance_Explained[[7,"Total_Variance"]]*100`% of total variance.
+
+
+
+```{r}
+# test eigenvalue calculation
+factorloadings = EFA_PAF0$loadings[,1] # loadings 1st factor (default is nfactors = 1)
+Eigenvalue = sum(factorloadings^2)
+Eigenvalue
+```
+
+
+#### Determine number of factors to retain
+
+```{r}
+# select nb of factors to test
+nf = c(5,6,7,8)
+```
+
+
+#### PAF orthogonal Varimax with n factors
+
+
+```{r}
+# perform multiple PAFs one for each factor number in selection
+EFA_PAFn = list()
+
+i=1
+for (n in nf) {
+  # EFA_PAFn[[i]] <- n
+  EFA_PAFn[[i]] <- psych::fa(data_img_EFA2, rotate="varimax", scores=TRUE, nfactors = n)
+  i=i+1
+}
+names(EFA_PAFn) <- nf
+
+```
+
+
+##### Communalities {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors
+
+for (i in 1:length(nf)) {
+
+  cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+
+    EFA_PAFn_communalities <- data.table("Item"=names(EFA_PAFn[[i]]$communality), 
+                             "Communality"=as.numeric(EFA_PAFn[[i]]$communality))
+
+    # Sort table
+    EFA_PAFn_communalities <- EFA_PAFn_communalities |>
+      setorder(cols = "Communality")
+    
+    # Display table
+    kbl <- EFA_PAFn_communalities |> 
+              stable() |> 
+              row_spec(which(EFA_PAFn_communalities[,1]<.3), bold = T, color = "white", background = "#78BE20")
+    
+    print(kbl)
+    cat("\n\n")
+
+    # test communality calculation
+    variableloading = EFA_PAFn[[i]]$loadings["Im6",] # loadings 1st variable
+    communality = sum(variableloading^2)
+    print(paste0("Communality for Im6 =", communality))
+    cat("\n")
+    
+}
+```
+
+##### {.unlisted .unnumbered}
+
+Typically we should think about excluding variables with communalities below 0.3.
+
+Based on the above, no variable should be excluded.
+
+##### Factor loadings {.tabset}
+
+```{r, results='asis'}
+# loadings for all selected number of factors
+
+for (i in 1:length(nf)) {
+  
+cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+      # print(EFA_PAFn[[i]]$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(EFA_PAFn[[i]], loadings=T, threshold = 0.3, summary=T)))
+     kbl <- model_parameters(EFA_PAFn[[i]], loadings=T, threshold = 0.3, summary=T) |>
+        stable()
+     print(kbl)
+           
+cat("\n\n")
+}
+```
+
+
+##### {.unlisted .unnumbered}
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+Factor loadings:
+
+* Number of items per factor >=3
+  + this condition is respected in all cases except when we have 8 factors. We eliminate the 8 factor solution
+
+* 0.40–0.30–0.20 rule: satisfactory variables (a) load onto their primary factor above 0.40, (b) load onto alter-native factors below 0.30, and (c) demonstrate a difference of 0.20 between their primary and alternative factor loadings. 
+  + 5 factor solution:
+    - this condition is not respected for many variables. We eliminate the 5 factor solution
+  + 6 factor solution:
+    - this condition is not respected for: Im6, Im7, Im9, (Im11), (Im15), Im16, Im17, Im18, Im19 where Im17 and Im18 are particularly spread out
+  + 7 factor solution:
+    - this condition is not respected for: Im7, Im8, Im9, Im15, Im16, Im19 where Im16 and Im19 are particularly spread out
+
+Based on the above we will prefer the **7 factor solution** but we will no doubt have to exclude some variables, potentially 19 as it also has the lower communality than Im16 and probably also factor 9 as it also has low communality 
+
+
+Thurstone simple structure criteria:
+
+* Each row (variable) of the factor pattern matrix should have at least one zero
+
+* Each column (factor) should have at least r zero elements, and the zeros for one factor should be unique from the zeros for the other factors
+
+* For every pair of columns (factors), there should be at least r variables with a zero coefficient in one column and a non-zero coefficient in the other
+
+* When r > 3 every pair of columns (factors), should contain a large proportion of variables with zeros in both columns
+
+* For every pair of columns (factors), there should be only a small proportion of variables with non-zeros in both columns
+
+
+
+#### PAF oblique Promax with n factors
+
+
+```{r}
+# perform multiple PAFs one for each factor number in selection
+EFA_PAFn_obl = list()
+
+i=1
+for (n in nf) {
+  # EFA_PAFn_obl[[i]] <- n
+  EFA_PAFn_obl[[i]] <- psych::fa(data_img_EFA2, rotate="promax", scores=TRUE, nfactors = n)
+  i=i+1
+}
+names(EFA_PAFn_obl) <- nf
+
+length(EFA_PAFn_obl)
+```
+
+
+##### Communalities {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors
+
+for (i in 1:length(nf)) {
+
+  cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+
+    EFA_PAFn_obl_communalities <- data.table("Item"=names(EFA_PAFn_obl[[i]]$communality), 
+                             "Communality"=as.numeric(EFA_PAFn_obl[[i]]$communality))
+
+    # Sort table
+    EFA_PAFn_obl_communalities <- EFA_PAFn_obl_communalities |>
+      setorder(cols = "Communality")
+    
+    # Display table  
+    kbl <- EFA_PAFn_obl_communalities |> 
+              stable() |> 
+              row_spec(which(EFA_PAFn_obl_communalities[,1]<.3), bold = T, color = "white", background = "#78BE20")
+    
+    print(kbl)
+    cat("\n\n")
+
+    # test communality calculation
+    variableloading = EFA_PAFn_obl[[i]]$loadings["Im6",] # loadings 1st variable
+    communality = sum(variableloading^2)
+    print(paste0("Communality for Im6 =", communality))
+    cat("\n")
+    
+}
+```
+
+
+
+##### {.unlisted .unnumbered}
+
+
+##### Factor loadings {.tabset}
+
+```{r, results='asis'}
+# loadings for all selected number of factors
+
+test = list()
+
+for (i in 1:length(nf)) {
+  
+cat("###### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+      # print(EFA_PAFn_obl[[i]]$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(EFA_PAFn_obl[[i]], loadings=T, threshold = 0.3, summary=T)))
+     kbl <- model_parameters(EFA_PAFn_obl[[i]], loadings=T, threshold = 0.3, summary=T) |>
+        stable()
+     print(kbl)
+      
+cat("\n\n")
+}
+```
+
+
+##### {.unlisted .unnumbered}
+
+Here we have excluded variables: *`r excludedvars[["Variable"]]`* corresponding to *`r excludedvars[["Label_short"]]`* respectively
+
+-----------
+
+## Confirmatory factor analysis
+
+
+We test whether the constructs found in the exploratory phase adequately describe what is going on.
+
+### 6 factor model
+
+```{r}
+# no excluded variables
+CFA_model_img_6f <- "
+DECO =~ Im3 + Im4 + Im5
+FRENCH =~ Im6 + Im7 + Im8 + Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+QUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2 + Im15 + Im16 + Im19
+BRAND =~ Im17 + Im18 + Im9
+"
+
+# # excluded variables: Im9, Im15, Im16, Im19
+# CFA_model_img_6f <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FRENCH =~ Im6 + Im7 + Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# "
+
+# # excluded variables: Im9, Im15, Im16, Im19, Im8
+# CFA_model_img_6f <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FRENCH =~ Im6 + Im7 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# "
+
+# CFA_fit_img <- cfa(CFA_model_img_6f, data=data_img_EFA, missing="ML")
+CFA_fit_img_6f <- cfa(CFA_model_img_6f, data=survey, missing="ML")
+
+summary(CFA_fit_img_6f, fit.measures=TRUE, standardized=TRUE)
+```
+
+#### Discussion of global fit measures
+
+Chi square: 
+p-value > 0.05
+
+RMSEA
+RMSEA <= 0.05 			Good fit
+0.05 < RMSEA <= 0.08 		 Acceptable fit
+0.08 < RMSEA <= 0.10		 Bad fit
+RMSEA > 0.1 			 Unacceptable fit
+
+CFI
+CFI < 0.90			definitely reject model
+0.90 < CFI < 0.95 		high underrejection rates for misspecified models
+CFI > 0.95			accept model
+
+#### local fit measures
+
+```{r, fig.height=8}
+# semPaths(CFA_fit_img_6f, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5, 
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+semPaths(CFA_fit_img_6f, what = "path", whatLabels = "std", style = "mx",
+         rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
+         nCharNodes = 7,shapeMan = "rectangle", 
+         sizeMan = 4, sizeMan2 = 3, sizeInt = 2, sizeLat = 6, asize = 1.5,
+         curvePivot=TRUE, edge.label.cex = .8, edge.color = "skyblue4"
+         )
+```
+
+
+```{r}
+lambda = inspect(CFA_fit_img_6f, what="std")$lambda
+theta = inspect(CFA_fit_img_6f, what="std")$theta
+
+# create lambda matrix with ones instead of std.all
+ones <- lambda
+ones[ones>0] <- 1
+
+# a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+theta_lb <- theta %*% ones
+```
+
+##### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indicrel <- lambda^2/(lambda^2 + theta_lb)
+# indicrel
+
+# replace all values satisfying condition with NaN for visibility
+indicrel_fail <- indicrel
+indicrel_fail[indicrel_fail>.4] <- NaN
+indicrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(CFA_fit_img_6f, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(CFA_fit_img_6f, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+
+##### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+constrrel <- (t(lambda) %*% ones)^2 / ((t(lambda) %*% ones)^2 + t(theta_lb) %*% ones )
+# constrrel
+
+# replace all values satisfying condition with NaN for visibility
+constrrel_fail <- constrrel
+constrrel_fail[constrrel_fail>.6] <- NaN
+constrrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+
+##### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- (t(lambda) %*% lambda) / (t(lambda) %*% lambda + t(theta_lb) %*% ones )
+# avgvar
+
+# replace all values satisfying condition with NaN for visibility
+AVE_fail <- AVE
+AVE_fail[AVE_fail>.5] <- NaN
+AVE_fail
+
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted 
+std.loadings<- inspect(CFA_fit_img_6f, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+
+
+##### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+psi = inspect(CFA_fit_img_6f, what="std")$psi
+psi_fail <- psi
+psi_fail[psi_fail<.7] <- NaN
+psi_fail
+```
+
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+
+#psi matrix squared
+psi2 <- psi^2
+
+# replace diagonal of psi matrix with AVE values
+psi2 <- psi2 - psi2 * diag(1,nrow(psi2),ncol(psi2)) + diag(AVE) * diag(1,nrow(AVE),ncol(AVE))
+
+# create matrix with columns filled with AVE
+AVE_full <- AVE
+AVE_full[is.na(AVE_full)] <- 0 #replace NAs with 0s
+AVE_full <- AVE_full^0 %*% AVE_full # multiply a matrix full of ones with AVE_full to get columns filled with AVE
+
+# substract matrices any psi bigger than AVE will be negative
+AVEpsi_fail <- AVE_full - psi2
+# AVE_full - psi2
+AVEpsi_fail[AVEpsi_fail >= 0] <- NaN
+
+AVE_full
+psi2
+AVEpsi_fail
+```
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(CFA_fit_img_6f, "std")
+std_fit1$psi^2
+```
+
+
+#### Modification indices
+
+```{r}
+arrange(modificationindices(CFA_fit_img_6f),-mi)
+```
+
+### 7 factor model
+
+Based on the modification indices we create a new model
+
+```{r}
+
+# # no excluded variables:
+# CFA_model_img_7f <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2 + Im15 + Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7 + Im9
+# "
+
+# MIs indicate separate Im1, Im2 and Im16, Im19 no excluded variables
+# Im8 under FRENCH
+# exclude Im8 
+# exclude Im15
+# exclude Im9
+CFA_model_img_7f <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2  
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+"
+
+# # excluded variables: Im9, Im15, Im16, Im19
+# CFA_model_img_7f <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FOOD =~ Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# "
+
+# # excluded variables: Im9, Im15, Im16, Im19, Im8
+# CFA_model_img_7f <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# "
+
+# # 8 factor model: excluded variables: Im9, Im15, Im8, Im11
+# CFA_model_img_7f <- "
+# QUAL =~ Im12 + Im13
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# PROF =~ Im16 + Im19
+# "
+
+
+CFA_fit_img_7f <- cfa(CFA_model_img_7f, data=survey, missing="ML")
+summary(CFA_fit_img_7f, fit.measures=TRUE, standardized=TRUE)
+```
+
+#### Discussion of global fit measures
+
+Chi square: 
+p-value > 0.05
+
+RMSEA
+RMSEA <= 0.05 			Good fit
+0.05 < RMSEA <= 0.08 		 Acceptable fit
+0.08 < RMSEA <= 0.10		 Bad fit
+RMSEA > 0.1 			 Unacceptable fit
+
+CFI
+CFI < 0.90			definitely reject model
+0.90 < CFI < 0.95 		high underrejection rates for misspecified models
+CFI > 0.95			accept model
+
+#### local fit measures
+
+```{r, fig.height=8}
+# semPaths(CFA_fit_img_7f, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5, 
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+semPaths(CFA_fit_img_7f, what = "path", whatLabels = "std", style = "mx",
+         rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
+         nCharNodes = 7,shapeMan = "rectangle", 
+         sizeMan = 4, sizeMan2 = 3, sizeInt = 2, sizeLat = 6, asize = 1.5,
+         curvePivot=TRUE, edge.label.cex = .8, edge.color = "skyblue4"
+         )
+```
+
+
+```{r}
+lambda = inspect(CFA_fit_img_7f, what="std")$lambda
+theta = inspect(CFA_fit_img_7f, what="std")$theta
+
+# create lambda matrix with ones instead of std.all
+ones <- lambda
+ones[ones>0] <- 1
+
+# a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+theta_lb <- theta %*% ones
+```
+
+##### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indicrel <- lambda^2/(lambda^2 + theta_lb)
+# indicrel
+
+# replace all values satisfying condition with NaN for visibility
+indicrel_fail <- indicrel
+indicrel_fail[indicrel_fail>.4] <- NaN
+indicrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(CFA_fit_img_7f, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(CFA_fit_img_7f, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+
+##### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+constrrel <- (t(lambda) %*% ones)^2 / ((t(lambda) %*% ones)^2 + t(theta_lb) %*% ones )
+# constrrel
+
+# replace all values satisfying condition with NaN for visibility
+constrrel_fail <- constrrel
+constrrel_fail[constrrel_fail>.6] <- NaN
+constrrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+
+##### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- (t(lambda) %*% lambda) / (t(lambda) %*% lambda + t(theta_lb) %*% ones )
+# avgvar
+
+# replace all values satisfying condition with NaN for visibility
+AVE_fail <- AVE
+AVE_fail[AVE_fail>.5] <- NaN
+AVE_fail
+
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted 
+std.loadings<- inspect(CFA_fit_img_7f, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+
+
+##### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+psi = inspect(CFA_fit_img_7f, what="std")$psi
+psi_fail <- psi
+psi_fail[psi_fail<.7] <- NaN
+psi_fail
+```
+
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+
+#psi matrix squared
+psi2 <- psi^2
+
+# replace diagonal of psi matrix with AVE values
+psi2 <- psi2 - psi2 * diag(1,nrow(psi2),ncol(psi2)) + diag(AVE) * diag(1,nrow(AVE),ncol(AVE))
+
+# create matrix with columns filled with AVE
+AVE_full <- AVE
+AVE_full[is.na(AVE_full)] <- 0 #replace NAs with 0s
+AVE_full <- AVE_full^0 %*% AVE_full # multiply a matrix full of ones with AVE_full to get columns filled with AVE
+
+# substract matrices any psi bigger than AVE will be negative
+AVEpsi_fail <- AVE_full - psi2
+# AVE_full - psi2
+AVEpsi_fail[AVEpsi_fail >= 0] <- NaN
+
+AVE_full
+psi2
+AVEpsi_fail
+```
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(CFA_fit_img_7f, "std")
+std_fit1$psi^2
+```
+
+
+#### Modification indices
+
+```{r}
+arrange(modificationindices(CFA_fit_img_7f),-mi)
+```
+
+
+
+--------------------------------------------
+
+
+## SEM
+
+
+```{r}
+## don't actually think we need this as we can use the full data for confirmatory and path analysis
+# data_img_EFA2
+# data.frame(EFA_PAFn[[3]]$scores)
+# 
+# numcol_data_img_EFA = dim(data_img_EFA2)[2]
+# numcol_scores = dim(EFA_PAFn[[3]]$scores)[2]
+# numcol_data_img_EFA
+# numcol_scores
+# 
+# CFA_data = cbind(data_img_EFA2, EFA_PAFn[[3]]$scores, survey_excl_img2["SAT_1"])
+# CFA_data
+# # colnames(CFA_data)[23:29] = c("Gourmet food", "Brand image", "Choice range", "Relaxed atmosphere", "Decoration", "Product quality", "Frenchness")
+# 
+# # colnames(CFA_data)[numcol_data_img_EFA:(numcol_data_img_EFA + numcol_scores)] = c("FOOD", "BRAND", "CHOICE", "ATMOS", "DECO")
+# colnames(CFA_data)[numcol_data_img_EFA:(numcol_data_img_EFA + numcol_scores)] = c("FOOD", "BRAND", "CHOICE", "ATMOS", "DECO", "QUAL", "FRENCH")
+# 
+# CFA_data
+```
+
+
+### model images to mediators
+
+
+```{r}
+# missing Im8, Im15, Im9
+
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2  
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ DECO + FOOD + ATMOS + PRODQUAL + CHOICE + PROF + BRAND + FRENCH + Im8 + Im15 + Im9
+# AFCOM ~ DECO + FOOD + ATMOS + PRODQUAL + CHOICE + PROF + BRAND + FRENCH + Im8 + Im15 + Im9
+# "
+
+# delete relationships based on regression significance levels
+model_SEM <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2  
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+
+AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+SAT =~ SAT_1 + SAT_2 + SAT_3
+RI =~ C_REP1 + C_REP2 + C_REP3
+COI =~ C_CR1 + C_CR3 + C_CR4
+
+SAT ~ DECO + CHOICE + PROF
+AFCOM ~ ATMOS + PRODQUAL + FRENCH
+"
+
+```
+
+### linear regression
+
+```{r}
+# # linear regression
+# lm_SAT_1 <-  lm (model_SAT_1, data = survey) 
+# summary(lm_SAT_1)
+# # note: lm deletes all missing variables in the Xs! (not in Ys) (see help lavOptions)
+```
+
+### path analysis
+
+```{r}
+# path analysis
+SEM_fit <- cfa(model_SEM, data=survey, missing="ML")
+summary(SEM_fit, fit.measures=TRUE, standardized=TRUE)
+
+# note: cfa deletes all missing variables in the Xs! (not in Ys) (see help lavOptions)
+```
+
+#### Discussion of global fit measures
+
+Chi square: 
+p-value > 0.05
+
+RMSEA
+RMSEA <= 0.05 			Good fit
+0.05 < RMSEA <= 0.08 		 Acceptable fit
+0.08 < RMSEA <= 0.10		 Bad fit
+RMSEA > 0.1 			 Unacceptable fit
+
+CFI
+CFI < 0.90			definitely reject model
+0.90 < CFI < 0.95 		high underrejection rates for misspecified models
+CFI > 0.95			accept model
+
+#### local fit measures
+
+```{r}
+# semPaths(SEM_fit, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2),
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5,
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+semPaths(SEM_fit, what = "col", whatLabels = "par", style = "ram",
+         rotation = 2, layout = "tree3",
+         mar = c(1, 2, 1, 2), #margins
+         nCharNodes = 7,
+         shapeMan = "rectangle", # variable shape
+         sizeMan = 4, # variable shape size
+         sizeMan2 = 3, # variable shape vertical stretch
+         # structural = T, # don't plot image variables (manifests)
+         sizeInt = 1, # intercept size
+         intercepts = F, # don't include intercepts
+         sizeLat = 5, #factor size
+         asize = 2, # arrow size
+         curvePivot=T, # edge broken curve
+         edge.label.cex = .5, # edge label size
+         # edge.color = "skyblue4",
+         # levels= c(1,2,7,8,9,10),
+         groups = "latents",
+         cut = .5 #cutoff for edges,
+         )
+
+# semPaths(SEM_fit, what = "est", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", 
+#          mar = c(1, 2, 1, 2), #margins
+#          nCharNodes = 7,
+#          shapeMan = "rectangle", # variable shape
+#          sizeMan = 4, # variable shape size
+#          sizeMan2 = 3, # variable shape vertical stretch
+#          structural = T, # don't plot image variables (manifests)
+#          sizeInt = 1, # intercept size
+#          intercepts = F, # don't include intercepts
+#          sizeLat = 5, #factor size
+#          asize = 2, # arrow size
+#          curvePivot=T, # edge broken curve
+#          edge.label.cex = .6, # edge label size
+#          edge.color = "skyblue4",
+#          # levels= c(1,2,7,8,9,10),
+#          # groups = "latents",
+#          cut = .4 #cutoff for edges,
+#          )
+
+```
+
+
+```{r}
+lambda = inspect(SEM_fit, what="std")$lambda
+theta = inspect(SEM_fit, what="std")$theta
+
+# create lambda matrix with ones instead of std.all
+ones <- lambda
+ones[ones>0] <- 1
+
+# a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+theta_lb <- theta %*% ones
+```
+
+##### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indicrel <- lambda^2/(lambda^2 + theta_lb)
+# indicrel
+
+# replace all values satisfying condition with NaN for visibility
+indicrel_fail <- indicrel
+indicrel_fail[indicrel_fail>.4] <- NaN
+indicrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(SEM_fit, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(SEM_fit, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+
+##### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+constrrel <- (t(lambda) %*% ones)^2 / ((t(lambda) %*% ones)^2 + t(theta_lb) %*% ones )
+# constrrel
+
+# replace all values satisfying condition with NaN for visibility
+constrrel_fail <- constrrel
+constrrel_fail[constrrel_fail>.6] <- NaN
+constrrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+
+##### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- (t(lambda) %*% lambda) / (t(lambda) %*% lambda + t(theta_lb) %*% ones )
+# avgvar
+
+# replace all values satisfying condition with NaN for visibility
+AVE_fail <- AVE
+AVE_fail[AVE_fail>.5] <- NaN
+AVE_fail
+
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted 
+std.loadings<- inspect(SEM_fit, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+
+
+##### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+psi = inspect(SEM_fit, what="std")$psi
+psi_fail <- psi
+psi_fail[psi_fail<.7] <- NaN
+psi_fail
+```
+
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+
+#psi matrix squared
+psi2 <- psi^2
+
+# replace diagonal of psi matrix with AVE values
+psi2 <- psi2 - psi2 * diag(1,nrow(psi2),ncol(psi2)) + diag(AVE) * diag(1,nrow(AVE),ncol(AVE))
+
+# create matrix with columns filled with AVE
+AVE_full <- AVE
+AVE_full[is.na(AVE_full)] <- 0 #replace NAs with 0s
+AVE_full <- AVE_full^0 %*% AVE_full # multiply a matrix full of ones with AVE_full to get columns filled with AVE
+
+# substract matrices any psi bigger than AVE will be negative
+AVEpsi_fail <- AVE_full - psi2
+# AVE_full - psi2
+AVEpsi_fail[AVEpsi_fail >= 0] <- NaN
+
+AVE_full
+psi2
+AVEpsi_fail
+```
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(SEM_fit, "std")
+std_fit1$psi^2
+```
+
+
+
+#### Modification indices
+
+```{r}
+arrange(modificationindices(SEM_fit),-mi)
+```
+
+
+### full model
+
+
+```{r}
+# missing Im8, Im15, Im9
+
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2  
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ DECO + FOOD + ATMOS + PRODQUAL + CHOICE + PROF + BRAND + FRENCH + Im8 + Im15 + Im9
+# AFCOM ~ DECO + FOOD + ATMOS + PRODQUAL + CHOICE + PROF + BRAND + FRENCH + Im8 + Im15 + Im9
+# "
+
+# # Full model with betas
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH + si8*Im8 + si15*Im15 + si9*Im9
+# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH + ai8*Im8 + ai15*Im15 + ai9*Im9
+# 
+# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH + r0i8*Im8 + r0i15*Im15 + r0i9*Im9
+# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH + c0i8*Im8 + c0i15*Im15 + c0i9*Im9
+# 
+# rss1:= rs*s1
+# raa1:= ra*a1
+# css1:= cs*s1
+# caa1:= ca*a1
+# DECOtoRI:= r01 + rss1 + raa1
+# DECOtoCOI:= c01 + css1 + caa1
+# 
+# rss2:= rs*s2
+# raa2:= ra*a2
+# css2:= cs*s2
+# caa2:= ca*a2
+# FOODtoRI:= r02 + rss2 + raa2
+# FOODtoCOI:= c02 + css2 + caa2
+# 
+# rss3:= rs*s3
+# raa3:= ra*a3
+# css3:= cs*s3
+# caa3:= ca*a3
+# ATMOStoRI:= r03 + rss3 + raa3
+# ATMOStoCOI:= c03 + css3 + caa3
+# 
+# rss4:= rs*s4
+# raa4:= ra*a4
+# css4:= cs*s4
+# caa4:= ca*a4
+# PQUALtoRI:= r04 + rss4 + raa4
+# PQUALtoCOI:= c04 + css4 + caa4
+# 
+# rss5:= rs*s5
+# raa5:= ra*a5
+# css5:= cs*s5
+# caa5:= ca*a5
+# CHOICEtoRI:= r05 + rss5 + raa5
+# CHOICEtoCOI:= c05 + css5 + caa5
+# 
+# rss6:= rs*s6
+# raa6:= ra*a6
+# css6:= cs*s6
+# caa6:= ca*a6
+# PROFtoRI:= r06 + rss6 + raa6
+# PROFtoCOI:= c06 + css6 + caa6
+# 
+# rss7:= rs*s7
+# raa7:= ra*a7
+# css7:= cs*s7
+# caa7:= ca*a7
+# BRANDtoRI:= r07 + rss7 + raa7
+# BRANDtoCOI:= c07 + css7 + caa7
+# 
+# rss8:= rs*s8
+# raa8:= ra*a8
+# css8:= cs*s8
+# caa8:= ca*a8
+# FRENCHtoRI:= r08 + rss8 + raa8
+# FREMCHtoCOI:= c08 + css8 + caa8
+# "
+
+# # delete relationships based on regression significance levels
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2  
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ DECO + CHOICE + PROF
+# AFCOM ~ ATMOS + PRODQUAL + FRENCH
+# 
+# RI ~ SAT + AFCOM + ATMOS + PRODQUAL + Im8 + Im9
+# COI ~ SAT + AFCOM + ATMOS + PRODQUAL
+# "
+
+# # delete relationships based on regression significance levels
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ DECO + CHOICE + PROF
+# AFCOM ~ ATMOS + PRODQUAL + FRENCH
+# 
+# RI ~ SAT + AFCOM + ATMOS + PRODQUAL + Im8 + Im9
+# COI ~ SAT + AFCOM + ATMOS + PRODQUAL
+# "
+
+# delete Im8, Im9 move PRODQUAL AFCOM->RI
+model_SEM <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+
+AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+SAT =~ SAT_1 + SAT_2 + SAT_3
+RI =~ C_REP2 + C_REP3 + C_REP1
+COI =~ C_CR1 + C_CR3 + C_CR4
+
+SAT ~ s1*DECO + s5*CHOICE + s6*PROF
+AFCOM ~ a3*ATMOS + a8*FRENCH
+
+RI ~ rs*SAT + ra*AFCOM + r03*ATMOS + r04*PRODQUAL
+COI ~ cs*SAT + ca*AFCOM + c03*ATMOS
+
+rss1:= rs*s1
+css1:= cs*s1
+r1:= rss1
+c1:= css1
+
+raa3:= ra*a3
+caa3:= ca*a3
+r3:= r03 +  raa3
+c3:= c03 + caa3
+
+rss5:= rs*s5
+css5:= cs*s5
+r5:= rss5 
+c5:= css5
+
+rss6:= rs*s6
+css6:= cs*s6
+r6:= rss6
+c6:= css6
+
+raa8:= ra*a8
+caa8:= ca*a8
+r8:= raa8
+c8:= caa8
+"
+```
+
+### linear regression
+
+```{r}
+# # linear regression
+# lm_SAT_1 <-  lm (model_SAT_1, data = survey) 
+# summary(lm_SAT_1)
+# # note: lm deletes all missing variables in the Xs! (not in Ys) (see help lavOptions)
+```
+
+### path analysis
+
+```{r}
+# path analysis
+SEM_fit <- cfa(model_SEM, data=survey, missing="ML")
+summary(SEM_fit, fit.measures=TRUE, standardized=TRUE)
+
+# note: cfa deletes all missing variables in the Xs! (not in Ys) (see help lavOptions)
+```
+
+#### Discussion of global fit measures
+
+Chi square: 
+p-value > 0.05
+
+RMSEA
+RMSEA <= 0.05 			Good fit
+0.05 < RMSEA <= 0.08 		 Acceptable fit
+0.08 < RMSEA <= 0.10		 Bad fit
+RMSEA > 0.1 			 Unacceptable fit
+
+CFI
+CFI < 0.90			definitely reject model
+0.90 < CFI < 0.95 		high underrejection rates for misspecified models
+CFI > 0.95			accept model
+
+#### local fit measures
+
+```{r, fig.height=15}
+# semPaths(SEM_fit, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5, 
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+# semPaths(SEM_fit, what = "col", whatLabels = "par", style = "ram",
+#          rotation = 2, layout = "tree3", 
+#          mar = c(1, 2, 1, 2), #margins
+#          nCharNodes = 7,
+#          shapeMan = "rectangle", # variable shape
+#          sizeMan = 4, # variable shape size
+#          sizeMan2 = 3, # variable shape vertical stretch
+#          # structural = T, # don't plot image variables (manifests)
+#          sizeInt = 1, # intercept size
+#          intercepts = F, # don't include intercepts
+#          sizeLat = 5, #factor size
+#          asize = 2, # arrow size
+#          curvePivot=T, # edge broken curve
+#          edge.label.cex = .5, # edge label size
+#          # edge.color = "skyblue4",
+#          # levels= c(1,2,7,8,9,10),
+#          groups = "latents",
+#          cut = .5 #cutoff for edges,
+#          )
+
+semPaths(SEM_fit, what = "est", whatLabels = "std", style = "mx",
+         rotation = 2, layout = "tree3", 
+         mar = c(1, 2, 1, 2), #margins
+         nCharNodes = 7,
+         shapeMan = "rectangle", # variable shape
+         sizeMan = 4, # variable shape size
+         sizeMan2 = 3, # variable shape vertical stretch
+         structural = T, # don't plot image variables (manifests)
+         sizeInt = 1, # intercept size
+         intercepts = F, # don't include intercepts
+         sizeLat = 5, #factor size
+         asize = 2, # arrow size
+         curvePivot=T, # edge broken curve
+         edge.label.cex = .6, # edge label size
+         edge.color = "skyblue4",
+         # levels= c(1,2,7,8,9,10),
+         # groups = "latents",
+         cut = .4 #cutoff for edges,
+         )
+```
+
+
+```{r}
+lambda = inspect(SEM_fit, what="std")$lambda
+theta = inspect(SEM_fit, what="std")$theta
+
+# create lambda matrix with ones instead of std.all
+ones <- lambda
+ones[ones>0] <- 1
+
+# a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+theta_lb <- theta %*% ones
+```
+
+
+##### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indicrel <- lambda^2/(lambda^2 + theta_lb)
+# indicrel
+
+# replace all values satisfying condition with NaN for visibility
+indicrel_fail <- indicrel
+indicrel_fail[indicrel_fail>.4] <- NaN
+indicrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(SEM_fit, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(SEM_fit, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+
+##### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+constrrel <- (t(lambda) %*% ones)^2 / ((t(lambda) %*% ones)^2 + t(theta_lb) %*% ones )
+# constrrel
+
+# replace all values satisfying condition with NaN for visibility
+constrrel_fail <- constrrel
+constrrel_fail[constrrel_fail>.6] <- NaN
+constrrel_fail
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+
+##### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- (t(lambda) %*% lambda) / (t(lambda) %*% lambda + t(theta_lb) %*% ones )
+# avgvar
+
+# replace all values satisfying condition with NaN for visibility
+AVE_fail <- AVE
+AVE_fail[AVE_fail>.5] <- NaN
+AVE_fail
+
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted 
+std.loadings<- inspect(SEM_fit, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+
+
+##### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+psi = inspect(SEM_fit, what="std")$psi
+psi_fail <- psi
+psi_fail[psi_fail<.7] <- NaN
+psi_fail
+```
+
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+
+#psi matrix squared
+psi2 <- psi^2
+
+# replace diagonal of psi matrix with AVE values
+psi2 <- psi2 - psi2 * diag(1,nrow(psi2),ncol(psi2)) + diag(AVE) * diag(1,nrow(AVE),ncol(AVE))
+
+# create matrix with columns filled with AVE
+AVE_full <- AVE
+AVE_full[is.na(AVE_full)] <- 0 #replace NAs with 0s
+AVE_full <- AVE_full^0 %*% AVE_full # multiply a matrix full of ones with AVE_full to get columns filled with AVE
+
+# substract matrices any psi bigger than AVE will be negative
+AVEpsi_fail <- AVE_full - psi2
+# AVE_full - psi2
+AVEpsi_fail[AVEpsi_fail >= 0] <- NaN
+
+AVE_full
+psi2
+AVEpsi_fail
+```
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(SEM_fit, "std")
+std_fit1$psi^2
+```
+
+
+
+#### Modification indices
+
+```{r}
+arrange(modificationindices(SEM_fit),-mi)
+```
+
+
+## Path analysis
+
+
+```{r}
+parameterestimates(SEM_fit, boot.ci.type = "bca.simple", standardized = TRUE) |>
+  arrange(-std.all,pvalue) |> filter(label!="") |>
+  stable()
+```
+
+
+----------
+
+
+<!-- # Dimensions by which Galeries Lafayette is perceived -->
+<!-- *What are the dimensions by which Galeries Lafayette is perceived? Please explain your findings and rational for your final result.* -->
+
+
+
+<!-- ### **Step 1**: Correlation Matrix -->
+
+
+
+<!-- ### **Step 2**: Check adequacy of correlation Matrix -->
+
+
+<!-- #### Bartlett’s Test -->
+
+
+<!-- #### KMO -->
+
+
+<!-- #### Anti-image Correlation -->
+
+
+
+
+<!-- ### **Step 3**: choose factor extraction method -->
+
+<!-- #### PAF first iteration full model -->
+
+
+<!-- #####  **Step 4**: Determine number of components -->
+
+<!-- ###### Scree plot -->
+
+<!-- ###### Kaiser Criterion -->
+
+<!-- ###### Communalities -->
+
+<!-- ###### Total Variance Explained -->
+
+<!-- ###### Factor loadings -->
+
+
+<!-- #### PAF second iteration -->
+
+
+<!-- #####  **Step 4**: Determine number of components -->
+
+<!-- ###### Scree plot -->
+
+<!-- ###### Kaiser Criterion -->
+
+<!-- ###### Communalities -->
+
+<!-- ###### Total Variance Explained -->
+
+<!-- ###### Factor loadings -->
+
+
+<!-- ### **Step 5**: Factor interpretation -->
+
+<!-- #### Oblique rotation and factor pattern matrix -->
+
+
+<!-- #### Interpretation, dimensions by which Galeries Lafayette is perceived -->
+
+
+<!-- # Selecting the causal model -->
+<!-- *Are the mechanism driving satisfaction and affective commitment similar? Are satisfaction and affective commitment mediating the impact of image perceptions on outcomes? If yes for which outcomes?* -->
+
+
+<!-- ## Regression with factor scores -->
+
+
+<!-- ## Mediators -->
+
+<!-- ```{r} -->
+<!-- # parameterestimates(fit1, boot.ci.type = "bca.simple", standardized = TRUE)%>% kable() -->
+<!-- ``` -->
+
+
+<!-- # Total effect of image dimensions on outcomes -->
+<!-- *What is driving the two distinct outcomes (repurchase and co-creation intention): Please rank the image dimensions with respect to the total effect on each outcome? Interpret your results.* -->
+
+
+
+
