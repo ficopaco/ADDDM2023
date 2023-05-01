@@ -1753,84 +1753,84 @@ arrange(modificationindices(SEM_fit),-mi)
 # AFCOM ~ DECO + FOOD + ATMOS + PRODQUAL + CHOICE + PROF + BRAND + FRENCH + Im8 + Im15 + Im9
 # "
 
-# # Full model with betas
-# model_SEM <- "
-# DECO =~ Im3 + Im4 + Im5
-# FOOD =~ Im10 + Im14
-# ATMOS =~ Im20 + Im21 + Im22
-# PRODQUAL =~ Im11 + Im12 + Im13
-# CHOICE =~ Im1 + Im2
-# PROF =~ Im16 + Im19
-# BRAND =~ Im17 + Im18
-# FRENCH =~ Im6 + Im7
-# 
-# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
-# SAT =~ SAT_1 + SAT_2 + SAT_3
-# RI =~ C_REP1 + C_REP2 + C_REP3
-# COI =~ C_CR1 + C_CR3 + C_CR4
-# 
-# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH + si8*Im8 + si15*Im15 + si9*Im9
-# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH + ai8*Im8 + ai15*Im15 + ai9*Im9
-# 
-# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH + r0i8*Im8 + r0i15*Im15 + r0i9*Im9
-# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH + c0i8*Im8 + c0i15*Im15 + c0i9*Im9
-# 
-# rss1:= rs*s1
-# raa1:= ra*a1
-# css1:= cs*s1
-# caa1:= ca*a1
-# DECOtoRI:= r01 + rss1 + raa1
-# DECOtoCOI:= c01 + css1 + caa1
-# 
-# rss2:= rs*s2
-# raa2:= ra*a2
-# css2:= cs*s2
-# caa2:= ca*a2
-# FOODtoRI:= r02 + rss2 + raa2
-# FOODtoCOI:= c02 + css2 + caa2
-# 
-# rss3:= rs*s3
-# raa3:= ra*a3
-# css3:= cs*s3
-# caa3:= ca*a3
-# ATMOStoRI:= r03 + rss3 + raa3
-# ATMOStoCOI:= c03 + css3 + caa3
-# 
-# rss4:= rs*s4
-# raa4:= ra*a4
-# css4:= cs*s4
-# caa4:= ca*a4
-# PQUALtoRI:= r04 + rss4 + raa4
-# PQUALtoCOI:= c04 + css4 + caa4
-# 
-# rss5:= rs*s5
-# raa5:= ra*a5
-# css5:= cs*s5
-# caa5:= ca*a5
-# CHOICEtoRI:= r05 + rss5 + raa5
-# CHOICEtoCOI:= c05 + css5 + caa5
-# 
-# rss6:= rs*s6
-# raa6:= ra*a6
-# css6:= cs*s6
-# caa6:= ca*a6
-# PROFtoRI:= r06 + rss6 + raa6
-# PROFtoCOI:= c06 + css6 + caa6
-# 
-# rss7:= rs*s7
-# raa7:= ra*a7
-# css7:= cs*s7
-# caa7:= ca*a7
-# BRANDtoRI:= r07 + rss7 + raa7
-# BRANDtoCOI:= c07 + css7 + caa7
-# 
-# rss8:= rs*s8
-# raa8:= ra*a8
-# css8:= cs*s8
-# caa8:= ca*a8
-# FRENCHtoRI:= r08 + rss8 + raa8
-# FREMCHtoCOI:= c08 + css8 + caa8
-# "
+# Full model with betas
+model_SEM <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+
+AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+SAT =~ SAT_1 + SAT_2 + SAT_3
+RI =~ C_REP1 + C_REP2 + C_REP3
+COI =~ C_CR1 + C_CR3 + C_CR4
+
+SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH + si8*Im8 + si15*Im15 + si9*Im9
+AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH + ai8*Im8 + ai15*Im15 + ai9*Im9
+
+RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH + r0i8*Im8 + r0i15*Im15 + r0i9*Im9
+COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH + c0i8*Im8 + c0i15*Im15 + c0i9*Im9
+
+rss1:= rs*s1
+raa1:= ra*a1
+css1:= cs*s1
+caa1:= ca*a1
+DECOtoRI:= r01 + rss1 + raa1
+DECOtoCOI:= c01 + css1 + caa1
+
+rss2:= rs*s2
+raa2:= ra*a2
+css2:= cs*s2
+caa2:= ca*a2
+FOODtoRI:= r02 + rss2 + raa2
+FOODtoCOI:= c02 + css2 + caa2
+
+rss3:= rs*s3
+raa3:= ra*a3
+css3:= cs*s3
+caa3:= ca*a3
+ATMOStoRI:= r03 + rss3 + raa3
+ATMOStoCOI:= c03 + css3 + caa3
+
+rss4:= rs*s4
+raa4:= ra*a4
+css4:= cs*s4
+caa4:= ca*a4
+PQUALtoRI:= r04 + rss4 + raa4
+PQUALtoCOI:= c04 + css4 + caa4
+
+rss5:= rs*s5
+raa5:= ra*a5
+css5:= cs*s5
+caa5:= ca*a5
+CHOICEtoRI:= r05 + rss5 + raa5
+CHOICEtoCOI:= c05 + css5 + caa5
+
+rss6:= rs*s6
+raa6:= ra*a6
+css6:= cs*s6
+caa6:= ca*a6
+PROFtoRI:= r06 + rss6 + raa6
+PROFtoCOI:= c06 + css6 + caa6
+
+rss7:= rs*s7
+raa7:= ra*a7
+css7:= cs*s7
+caa7:= ca*a7
+BRANDtoRI:= r07 + rss7 + raa7
+BRANDtoCOI:= c07 + css7 + caa7
+
+rss8:= rs*s8
+raa8:= ra*a8
+css8:= cs*s8
+caa8:= ca*a8
+FRENCHtoRI:= r08 + rss8 + raa8
+FREMCHtoCOI:= c08 + css8 + caa8
+"
 
 # # delete relationships based on regression significance levels
 # model_SEM <- "
@@ -1878,53 +1878,53 @@ arrange(modificationindices(SEM_fit),-mi)
 # COI ~ SAT + AFCOM + ATMOS + PRODQUAL
 # "
 
-# delete Im8, Im9 move PRODQUAL AFCOM->RI
-model_SEM <- "
-DECO =~ Im3 + Im4 + Im5
-FOOD =~ Im10 + Im14
-ATMOS =~ Im20 + Im21 + Im22
-PRODQUAL =~ Im11 + Im12 + Im13
-CHOICE =~ Im1 + Im2
-PROF =~ Im16 + Im19
-BRAND =~ Im17 + Im18
-FRENCH =~ Im6 + Im7
-
-AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
-SAT =~ SAT_1 + SAT_2 + SAT_3
-RI =~ C_REP2 + C_REP3 + C_REP1
-COI =~ C_CR1 + C_CR3 + C_CR4
-
-SAT ~ s1*DECO + s5*CHOICE + s6*PROF
-AFCOM ~ a3*ATMOS + a8*FRENCH
-
-RI ~ rs*SAT + ra*AFCOM + r03*ATMOS + r04*PRODQUAL
-COI ~ cs*SAT + ca*AFCOM + c03*ATMOS
-
-rss1:= rs*s1
-css1:= cs*s1
-r1:= rss1
-c1:= css1
-
-raa3:= ra*a3
-caa3:= ca*a3
-r3:= r03 +  raa3
-c3:= c03 + caa3
-
-rss5:= rs*s5
-css5:= cs*s5
-r5:= rss5 
-c5:= css5
-
-rss6:= rs*s6
-css6:= cs*s6
-r6:= rss6
-c6:= css6
-
-raa8:= ra*a8
-caa8:= ca*a8
-r8:= raa8
-c8:= caa8
-"
+# # delete Im8, Im9 move PRODQUAL AFCOM->RI
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP2 + C_REP3 + C_REP1
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s5*CHOICE + s6*PROF
+# AFCOM ~ a3*ATMOS + a8*FRENCH
+# 
+# RI ~ rs*SAT + ra*AFCOM + r03*ATMOS + r04*PRODQUAL
+# COI ~ cs*SAT + ca*AFCOM + c03*ATMOS
+# 
+# rss1:= rs*s1
+# css1:= cs*s1
+# r1:= rss1
+# c1:= css1
+# 
+# raa3:= ra*a3
+# caa3:= ca*a3
+# r3:= r03 +  raa3
+# c3:= c03 + caa3
+# 
+# rss5:= rs*s5
+# css5:= cs*s5
+# r5:= rss5 
+# c5:= css5
+# 
+# rss6:= rs*s6
+# css6:= cs*s6
+# r6:= rss6
+# c6:= css6
+# 
+# raa8:= ra*a8
+# caa8:= ca*a8
+# r8:= raa8
+# c8:= caa8
+# "
 ```
 
 ### linear regression
@@ -1964,7 +1964,7 @@ CFI > 0.95			accept model
 
 #### local fit measures
 
-```{r, fig.height=15}
+```{r}
 # semPaths(SEM_fit, what = "path", whatLabels = "std", style = "mx",
 #          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2), 
 #          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5, 
