@@ -1,0 +1,471 @@
+---
+title: "Case Study 2: Heliotronics Estimating an Experience Curve"
+author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    theme: readable
+    highlight: pygments
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+> *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
+
+------------------------------------------------------------------------
+
+```{r Import Data}
+library(data.table)
+library(ggplot2)
+library(corrplot) #correlation matrix plot
+library(olsrr)  #VIF and Tolerance Values
+library(dplyr)
+library(rcompanion) #histograms with normal curve
+library(REdaS) #KMO and Bartlett test
+library(psych)
+library(gridExtra)
+library(kableExtra)
+library(caret)
+```
+
+# Data Exploration
+
+```{r}
+cel_data <- fread("Data File_Case_Study_Factor Analysis_MD.csv", sep = ",", header = T)
+
+
+#str(cel_data)
+#summary(cel_data)
+```
+
+
+```{r Clean Data}
+
+cel_data <- cel_data[,-c("ownership","intro_q", "intro_b", "intro_d", "defect1")]
+cel_data <- cel_data[,-c(57:64)]
+#str(cel_data)
+cel_data <- na.omit(cel_data)
+
+cel_data_quests <- cel_data[,c(7:39)]
+```
+
+
+
+```{r}
+# plots <- lapply (1:33, function(i){
+#   x <- cel_data_quests[,i]
+#   
+#   ggplot(data.frame(x), aes(x)) +
+#     geom_histogram(fill = "red", color = "red", bandwidth = 2)+
+#     geom_density(aes(y=0.85*..count..), color = "black", adjust = 4, size = 1) +
+#     ggtitle(paste("Question",i))+
+#     xlab("Scores")+
+#     ylab("Count")+
+#     xlim(0,7) +
+#     theme_classic()
+# })
+# 
+# grid.arrange(brobs = plots, ncol = 5)
+
+
+par(mfrow = c(2, 2))
+plotNormalHistogram(cel_data$qd1, main = paste("Frequency Distribution of QD1"))
+plotNormalHistogram(cel_data$sat1, main = paste("Frequency Distribution of SAT1"))
+plotNormalHistogram(cel_data$gender, main = paste("Frequency Distribution of GENDER"))
+plotNormalHistogram(cel_data$brandrec, main = paste("Frequency Distribution of BRANDREC"))
+```
+
+
+
+```{r Correlation matrix}
+
+corr_matrix <- cor(cel_data_quests)
+corrplot(as.matrix(corr_matrix), method = "shade", order = "hclust", addrect = 10, tl.col ="black", tl.cex = 0.80)
+
+```
+
+```{r LM and VIF}
+KMOTEST <- KMOS(cel_data_quests)
+KMOTEST
+
+KMO_val <- KMOTEST$KMO
+KMO_val
+
+KMO_list <- data.table("Item" = character(), "Score" = double())
+for(i in 1:33){
+  KMO_list<- rbindlist(list(KMO_list, list(paste("qd",i, sep=""), KMOTEST$MSA[i])))
+}
+
+#Highlighted items that are less than the total KMO value. However many are below this value.
+#None are lower than the 0.4 threshold that is indicated in the slides
+KMO_list |> 
+  setorder(cols = "Score") |> 
+  kable() |> 
+  kable_minimal() |> 
+  row_spec(which(KMO_list[,2]<KMO_val), bold = T, color = "white", background = "#78BE20")
+
+
+bart_spher(cel_data_quests)
+
+```
+
+# Principal Axis Factoring
+
+
+```{r}
+#tried to find the best amount of factors in PAF.
+#Always around 5 which is lower than the ideal 8.
+
+best_factors <- data.table("Factors" = double(), "Amount" = double())
+best_eigen <- data.table("Index" = 1:31)
+
+for(i in 1:31){
+  temp_paf <- psych::fa(data.table(scale(cel_data_quests[,-c(4,23)])), nfactors = i, rotate = "varimax", scores = T)
+  fact_len <- length(which(temp_paf$values > 1))
+  #xx <- as.numeric(temp_paf$communalities)
+  fact_err <- temp_paf$BIC
+  best_eigen <- best_eigen[,paste("Factor_", i, sep=""):= temp_paf$values]
+  #best_eigen <- rbindlist(list(best_eigen,list(i,temp_paf$values)))
+  best_factors <- rbindlist(list(best_factors,list(i, fact_len)))
+}
+
+ggplot(best_factors, aes(Factors,Amount))+
+  geom_line(color = "#0099F8", size = 0.5)+
+  ggtitle("Eigen Value behavior by Model")+
+  labs(xlab="Model", ylab = "Amount of factors")+
+  theme_classic()
+
+best_eigen_melt <- melt(best_eigen ,  id.vars = "Index", variable.name = "Series")
+
+ggplot(best_eigen_melt, aes(Index, value))+
+  geom_line(aes(color = Series))+
+  xlim(0,12)+
+  geom_hline(yintercept=1)+
+  ggtitle("Amount of Factors with Eigen Value above 1")+
+  labs(xlab="Amount of Factors", ylab = "Eigen Value")+
+  theme_classic()
+
+
+paf1 <- psych::fa(cel_data_quests, nfactors = 5, rotate = "Varimax", scores = T)
+summary(paf1)
+
+
+plot(paf1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+```
+
+```{r Total Variance}
+pafEigenValue <- paf1$values
+
+pafVariance <- pafEigenValue / ncol(cel_data_quests) * 100
+
+pafSumVariance <- cumsum(pafEigenValue / ncol(cel_data_quests))
+
+pafTotal_Variance_Explained <- cbind(EigenValue = pafEigenValue[pafEigenValue>0],
+                                  Variance = pafVariance[pafEigenValue>0],
+                                  Total_Variance = pafSumVariance[pafEigenValue>0])
+
+pafTotal_Variance_Explained |> 
+  kable() |> 
+  kable_minimal()
+```
+
+
+```{r}
+print(paf1$loadings, cutoff=0.4, sort=TRUE)
+#Talk about groupings not being precise with assignment from groups in the PDF.
+#Mention the variables being predicted by multiple variables
+#mention the need to improve the groupings
+```
+
+
+
+# Principal Component Analysis
+
+```{r PC analysis}
+best_factors_pc <- data.table("Factors" = double(), "Amount" = double())
+best_eigen_pc <- data.table("Index" = 1:33)
+
+for(i in 1:33){
+  temp_paf_pc <- psych::principal(data.table(scale(cel_data_quests)), nfactors = i, rotate = "varimax", scores = T)
+  fact_len_pc <- length(which(temp_paf_pc$values > 1))
+  best_eigen_pc <- best_eigen_pc[,paste("Factor_", i, sep=""):= temp_paf_pc$values]
+  best_factors_pc <- rbindlist(list(best_factors_pc,list(i, fact_len_pc)))
+}
+
+best_factors_plot <- ggplot(best_factors_pc, aes(Factors,Amount))+
+  geom_line(color = "#0099F8", size = 0.5)+
+  ggtitle("Eigen Value behavior by Model")+
+  labs(xlab="Model", ylab = "Amount of factors")+
+  theme_classic()
+best_factors_plot
+
+best_eigen_melt <- melt(best_eigen_pc ,  id.vars = "Index", variable.name = "Series")
+
+best_eigen_plot <- ggplot(best_eigen_melt, aes(Index, value))+
+  geom_line(aes(color = Series))+
+  xlim(0,12)+
+  geom_hline(yintercept=1)+
+  ggtitle("Amount of Factors with Eigen Value above 1")+
+  labs(xlab="Amount of Factors", ylab = "Eigen Value")+
+  theme_classic()
+best_eigen_plot
+
+
+#they all produce 8 groups. Eigen values are the same for every group. with or without qd4 and qd23
+```
+
+
+```{r PC analysis 1}
+cd_PC1 <- psych::principal(cel_data_quests[,-c(4,23)], nfactors = 8, rotate="varimax", scores=TRUE)
+length(which(cd_PC1$values >1))
+
+plot(cd_PC0$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+
+#comment on how without qd4 and qd23 the ideal eigen value is 7 factors
+```
+
+
+
+```{r Total Variance}
+EigenValue <- cd_PC1$values
+
+Variance <- EigenValue / ncol(cel_data_quests) * 100
+
+SumVariance <- cumsum(EigenValue / ncol(cel_data_quests))
+
+Total_Variance_Explained <- cbind(EigenValue = EigenValue[EigenValue>0],
+                                  Variance = Variance[EigenValue>0],
+                                  Total_Variance = SumVariance[EigenValue>0])
+
+Total_Variance_Explained |> 
+  kable() |> 
+  kable_minimal()
+```
+
+```{r PC analysis 2}
+
+PC1_communalities <- data.frame(sort(cd_PC1$communality))
+PC1_communalities |> 
+  kable() |> 
+  kable_minimal()
+  
+#qd23 has the lowest communality but it is not terribly far away from the other values
+#qd4 is low but not the worst
+
+
+pc_loads <- print(cd_PC1$loadings, cutoff=0.4, sort=TRUE)
+
+```
+
+
+
+
+```{r Regression and factor scores}
+cd_factors <- cbind(cel_data_quests,cd_PC1$scores)
+colnames(cd_factors)[34:41]=c("Serviceability",
+                          "Performance",
+                          "Durability",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Features",
+                          "Reliability",
+                          "Prestige")
+```
+
+# Oblique Rotation
+
+```{r Oblique Rotation}
+cd_oblique2 <- cel_data[,c(7:42, 48:49)]
+cd_oblique <- cel_data[, c(40:42, 48:49)]
+
+cd_oblq1 <- psych::principal(cel_data_quests, rotate="promax",nfactors=8, scores=TRUE)
+cd_oblq3 <- psych::principal(cel_data_quests[,-c(4,23)], rotate="promax",nfactors=8, scores=TRUE)
+cd_oblq2 <- psych::principal(cd_oblique, rotate="promax",nfactors=2, scores=TRUE)
+
+
+print(cd_oblq3$loadings, cutoff=0.4, sort=TRUE)
+
+
+cd_oblq1_communalities <- data.frame(sort(cd_oblq1$communality))
+cd_oblq1_communalities
+#qd3 has the lowest communality but it is not terribly far away from the other values
+
+plot(cd_oblq1$values,xlab="Factor Number",
+     ylab="Eigenvalue",
+     main="Scree plot",
+     cex.lab=1.2,
+     cex.axis=1.2,
+     cex.main=1.8) +abline(h=1)
+
+print(cd_oblq1$loadings, cutoff=0.4, sort=TRUE)
+
+
+pred_table <- data.frame(cd_oblq1$scores)
+pred_table <- cbind(pred_table,cd_oblq2$scores)
+
+
+pred_table2 <- data.frame(cd_oblq3$scores)
+pred_table2 <- cbind(pred_table,cd_oblq2$scores)
+pred_table2 <- cbind(pred_table,cel_data_quests[,c(4,23)])
+
+
+colnames(pred_table)[1:10]=c("Serviceability",
+                          "Performance",
+                          "Durability",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Features",
+                          "Reliability",
+                          "Prestige",
+                          "Willingness_to_pay",
+                          "Repurchase_Intention")
+
+colnames(pred_table2)[1:10]=c("Serviceability",
+                          "Performance",
+                          "Features",
+                          "Aesthetics",
+                          "Ease_of_use",
+                          "Durability",
+                          "Reliability",
+                          "Conformance",
+                          "Willingness_to_pay",
+                          "Repurchase_Intention")
+
+```
+
+```{r Correlation of Factors}
+pred_corr_matrix <- cor(pred_table)
+corrplot(as.matrix(pred_corr_matrix))
+
+pred_corr_matrix <- cor(pred_table2)
+corrplot(as.matrix(pred_corr_matrix))
+```
+
+```{r}
+hist(pred_table$Willingness_to_pay)
+hist(pred_table$Repurchase_Intention)
+summary(pred_table$Willingness_to_pay)
+summary(pred_table$Repurchase_Intention)
+
+```
+
+
+# Regression Analysis
+
+```{r Regression Models}
+pred_table <- as.data.table(scale(pred_table))
+pred_table2 <- as.data.table(scale(pred_table2))
+
+wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
+
+wtp_model3 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance + qd4 + qd23, data = pred_table2)
+
+wtp_model4 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability, data = pred_table2)
+
+wtp_model2 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance, data = pred_table2)
+
+summary(wtp_model)
+summary(wtp_model2)
+summary(wtp_model3)
+summary(wtp_model4)
+
+ri_model <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table)
+
+ri_model3 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance + qd4 + qd23, data = pred_table2)
+
+ri_model4 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability, data = pred_table2)
+
+ri_model2 <- lm(Repurchase_Intention ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Conformance, data = pred_table2)
+
+summary(ri_model)
+summary(ri_model2)
+summary(ri_model3)
+summary(ri_model4)
+```
+
+
+
+
+```{r}
+# #dummy variables must be created manually, hence convert to factors
+# ucExtract$Fuel_Type <- as.factor(usedCars$Fuel_Type)
+# 
+# #create dummy variables list
+# ucExtDummies <- dummyVars(~ ., data=ucExtract)
+# 
+# #create new table with dummy variables
+# ucExtract <- as.data.frame(predict(ucExtDummies, newdata = usedCars))
+
+cel_data$brandrec <- as.factor(cel_data$brandrec)
+str(cel_data$brandrec)
+
+dummies <- dummyVars(~., data = cel_data)
+
+Ext_cel_data <- as.data.frame(predict(dummies, newdata = cel_data))
+
+pred_table <- cbind(pred_table, Ext_cel_data[,61:65])
+pred_table2 <- cbind(pred_table, Ext_cel_data[,61:65])
+
+
+```
+
+```{r}
+pred_table_1 <- pred_table[brandrec.1==1,]
+pred_table_2 <- pred_table[brandrec.2 ==1]
+pred_table_3 <- pred_table[brandrec.3 ==1]
+pred_table_4 <- pred_table[brandrec.4 ==1]
+pred_table_5 <- pred_table[brandrec.5 ==1]
+
+wtp_model <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_1)
+
+wtp_model2 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_2)
+
+wtp_model3 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_3)
+
+wtp_model4 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_4)
+
+wtp_model5 <- lm(Willingness_to_pay ~ Serviceability +Performance + Durability + Aesthetics + Ease_of_use + Features + Reliability + Prestige, data = pred_table_5)
+
+summary(wtp_model)
+summary(wtp_model2)
+summary(wtp_model3)
+summary(wtp_model4)
+summary(wtp_model5)
+```
+
+
+
+```{r}
+#create subset of data per brand
+#for (i in 1:5){
+  #nam <- paste("cd_", as.character(i), sep = "")
+  #assign(nam, cel_data[cel_data$brandrec == i,])
+  
+  #print(as.data.table(nam))
+  #xx <- subset(as.data.table(nam), brandrec == i)
+  
+  #separate the variables
+  #temp_quest <- psych::principal(nam, rotate="promax",nfactors=8, scores=TRUE)
+  #temp_vars <- psych::principal(nam, rotate="promax",nfactors=2, scores=TRUE)
+#}
+
+#xx <- lm(ri_1~ri_2 + brandrec=1, data = cel_data)
+
+
+```
+
