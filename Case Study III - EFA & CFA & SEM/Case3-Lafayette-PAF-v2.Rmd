@@ -197,7 +197,7 @@ f_communality_load <- function(fit){
     
     # Display table
     kbl <- communality |> 
-              stable(caption=paste0("Test- Communality calculated from loadings for function \"",fit$fn  ,"\" with rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) |>
+              stable(caption=paste0("Test - Communality calculated from loadings for function \"",fit$fn  ,"\" with rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) |>
               row_spec(which(communality[,1]<.3), bold = T, color = "white", background = "red")
     
     kbl   
