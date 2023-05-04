@@ -153,10 +153,10 @@ f_bartlett <- function(data){
 
 ```{r}
 # communalities (exclude variables if < 0.3)
-f_communality <- function(PAF){
+f_communality <- function(fit){
   
-    communality <- data.table("Item"=names(PAF$communality), 
-                             "Communality"=as.numeric(PAF$communality))
+    communality <- data.table("Item"=names(fit$communality), 
+                             "Communality"=as.numeric(fit$communality))
 
     # Sort table
     communality <- communality |>
@@ -164,27 +164,27 @@ f_communality <- function(PAF){
     
     # Display table
     kbl <- communality |> 
-              stable(caption=paste0("Communality for function \"",PAF$fn  ,"\" with rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) |>
+              stable(caption=paste0("Communality for function \"",fit$fn  ,"\" with rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) |>
               row_spec(which(communality[,1]<.3), bold = T, color = "white", background = "red")
     
     kbl 
 }
 ```
 
-## f_communality_test {.unnumbered}
+## f_communality_load {.unnumbered}
 
 ```{r}
 # test to see if function calculates communality from loadings
-f_communality_test <- function(PAF){
+f_communality_load <- function(fit){
  
   communality_calc <- numeric()
-  for (i in 1:nrow(PAF$loadings)){
+  for (i in 1:nrow(fit$loadings)){
     
     # test communality calculation
-    variableloading = PAF$loadings[i,] # loadings 1st variable
+    variableloading = fit$loadings[i,] # loadings 1st variable
     communality_calc[i] = sum(variableloading^2)
-    names(communality_calc)[i] <- names(PAF$loadings[,1])[i]
-    # print(paste0("Communality for ", names(PAF$loadings[,1])[i]," = ", communality_calc[i]))
+    names(communality_calc)[i] <- names(fit$loadings[,1])[i]
+    # print(paste0("Communality for ", names(fit$loadings[,1])[i]," = ", communality_calc[i]))
     
   }
   
@@ -197,7 +197,7 @@ f_communality_test <- function(PAF){
     
     # Display table
     kbl <- communality |> 
-              stable(caption=paste0("Test- Communality calculated from loadings for function \"",PAF$fn  ,"\" with rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) |>
+              stable(caption=paste0("Test- Communality calculated from loadings for function \"",fit$fn  ,"\" with rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) |>
               row_spec(which(communality[,1]<.3), bold = T, color = "white", background = "red")
     
     kbl   
@@ -207,25 +207,25 @@ f_communality_test <- function(PAF){
 ```{r, echo=F}
 # k=1
 # f_communality(PAFn_norot[[k]])
-# f_communality_test(PAFn_norot[[k]])
+# f_communality_load(PAFn_norot[[k]])
 # # print("----")
 # f_communality(PAFn[[k]])
-# f_communality_test(PAFn[[k]])
+# f_communality_load(PAFn[[k]])
 # # print("----")
 # f_communality(PAFn_obl[[k]])
-# f_communality_test(PAFn_obl[[k]])
+# f_communality_load(PAFn_obl[[k]])
 ```
 
 ```{r, echo=F}
 # k=1
 # f_communality(PCAn_norot[[k]])
-# f_communality_test(PCAn_norot[[k]])
+# f_communality_load(PCAn_norot[[k]])
 # # print("----")
 # f_communality(PCAn[[k]])
-# f_communality_test(PCAn[[k]])
+# f_communality_load(PCAn[[k]])
 # # print("----")
 # f_communality(PCAn_obl[[k]])
-# f_communality_test(PCAn_obl[[k]])
+# f_communality_load(PCAn_obl[[k]])
 ```
 
 ## f_construct_corr
@@ -314,18 +314,18 @@ corrplot(as.matrix(corr_matrix),
 }
 ```
 
-## f_eigenvalue_test {.unnumbered}
+## f_eigenvalue_load {.unnumbered}
 
 ```{r}
-f_eigenvalue_test <- function(PAF){
+f_eigenvalue_load <- function(fit){
 
   Eigenvalue <- numeric()
-  for (i in 1:ncol(PAF$loadings)){
+  for (i in 1:ncol(fit$loadings)){
   
     # test eigenvalue calculation
-    factorloadings = PAF$loadings[,i] # loadings 1st factor (default is nfactors = 1)
+    factorloadings = fit$loadings[,i] # loadings 1st factor (default is nfactors = 1)
     Eigenvalue[i] = sum(factorloadings^2)
-    # print(paste0("Eigenvalue factor ",names(PAF$loadings[1,])[i] ," = ", Eigenvalue))
+    # print(paste0("Eigenvalue factor ",names(fit$loadings[1,])[i] ," = ", Eigenvalue))
     
   }
 Eigenvalue
@@ -475,11 +475,11 @@ f_indic_rel <- function(lambda, theta){
 ## f_kaiser {.unnumbered}
 
 ```{r}
-f_kaiser <- function(PAF){
+f_kaiser <- function(fit){
 
   #kaiser criterion (retain factors with eigenvalues >1)
-  PAF_kaiser_nb <- length(which(PAF$e.values > 1))
-  print(paste0("Kaiser number = ",PAF_kaiser_nb))
+  fit_kaiser_nb <- length(which(fit$e.values > 1))
+  print(paste0("Kaiser number = ",fit_kaiser_nb))
   
 }
 ```
@@ -488,11 +488,11 @@ f_kaiser <- function(PAF){
 
 ```{r}
 # factor loading functions
-f_loadings <- function(PAF){
+f_loadings <- function(fit){
  
-      # print(PAF$loadings, cutoff=0.3)
-      # print(print_html(model_parameters(PAF, loadings=T, threshold = 0.3, summary=T))) 
-      kbl <- model_parameters(PAF, loadings=T, threshold = 0.3, summary=T) |>
+      # print(fit$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(fit, loadings=T, threshold = 0.3, summary=T))) 
+      kbl <- model_parameters(fit, loadings=T, threshold = 0.3, summary=T) |>
         stable()
       kbl 
 }
@@ -563,10 +563,10 @@ f_PCAn <- function(data, nf=1, rotation){
 ## f_scree {.unnumbered}
 
 ```{r}
-f_scree <- function(PAF){
+f_scree <- function(fit){
   
   #display Scree-plot (retain factors before elbow)
-  plot(PAF$e.values,xlab="Factor Number",
+  plot(fit$e.values,xlab="Factor Number",
        ylab="Eigenvalue",
        main="Scree plot",
        cex.lab=1.2,
@@ -579,69 +579,70 @@ f_scree <- function(PAF){
 }
 ```
 
-## f_totalvar_PAF {.unnumbered}
+## f_totalvar_eval {.unnumbered}
 
 ```{r}
-f_totalvar_PAF <- function(PAF){
+f_totalvar_eval <- function(fit){
   
   #calculate total variance (does not change if number of factors change)
-  PAF_EigenValue <- PAF$e.values
-  PAF_Variance <- PAF_EigenValue / length(PAF$e.values) * 100 # ncol(data) = sum(PAF1$e.values) = length(PAF1$e.values)
-  PAF_SumVariance <- cumsum(PAF_EigenValue / length(PAF$e.values))
-  PAF_Total_Variance_Explained <- cbind("Factor number"=
-                                            seq(1, length.out = length(PAF_EigenValue[PAF_EigenValue>0])),
-                                            EigenValue = PAF_EigenValue[PAF_EigenValue>0],
-                                            Variance = PAF_Variance[PAF_EigenValue>0],
-                                            Total_Variance = PAF_SumVariance[PAF_EigenValue>0])
+  fit_EigenValue <- fit$e.values
+  fit_Variance <- fit_EigenValue / length(fit$e.values) * 100 # ncol(data) = sum(fit1$e.values) = length(fit1$e.values)
+  fit_SumVariance <- cumsum(fit_EigenValue / length(fit$e.values))
+  fit_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(fit_EigenValue[fit_EigenValue>0])),
+                                            EigenValue = fit_EigenValue[fit_EigenValue>0],
+                                            Variance = fit_Variance[fit_EigenValue>0],
+                                            Total_Variance = fit_SumVariance[fit_EigenValue>0])
   #display table
-  kbl <- PAF_Total_Variance_Explained |> 
-    stable(caption=paste0("Total Variance Explained for function \"",PAF$fn  ,"\" calculated with \"e.values\" argument for rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) 
+  kbl <- fit_Total_Variance_Explained |> 
+    stable(caption=paste0("Total Variance Explained for function \"",fit$fn  ,"\" calculated with \"e.values\" argument for rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) 
   
   kbl
   
 }
 ```
 
-## f_totalvar_PCA {.unnumbered}
+
+## f_totalvar_val {.unnumbered}
 
 ```{r}
-f_totalvar_PCA <- function(PCA){
+f_totalvar_val <- function(fit){
   
   #calculate total variance (does not change if number of factors change)
-  PCA_EigenValue <- PCA$values
-  PCA_Variance <- PCA_EigenValue / length(PCA$values) * 100 # ncol(data) = sum(PCA$values) = length(PCA$values)
-  PCA_SumVariance <- cumsum(PCA_EigenValue / length(PCA$values))
-  PCA_Total_Variance_Explained <- cbind("Factor number"=
-                                            seq(1, length.out = length(PCA_EigenValue[PCA_EigenValue>0])),
-                                            EigenValue = PCA_EigenValue[PCA_EigenValue>0],
-                                            Variance = PCA_Variance[PCA_EigenValue>0],
-                                            Total_Variance = PCA_SumVariance[PCA_EigenValue>0])
+  fit_EigenValue <- fit$values
+  fit_Variance <- fit_EigenValue / length(fit$values) * 100 # ncol(data) = sum(fit$values) = length(fit$values)
+  fit_SumVariance <- cumsum(fit_EigenValue / length(fit$values))
+  fit_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(fit_EigenValue[fit_EigenValue>0])),
+                                            EigenValue = fit_EigenValue[fit_EigenValue>0],
+                                            Variance = fit_Variance[fit_EigenValue>0],
+                                            Total_Variance = fit_SumVariance[fit_EigenValue>0])
   #display table
-  kbl <- PCA_Total_Variance_Explained |> 
-    stable(caption=paste0("Total Variance Explained for function \"",PCA$fn  ,"\" calculated with \"values\" argument for rotation \"", PCA$rotation, "\" and ", PCA$factors, " factors")) 
+  kbl <- fit_Total_Variance_Explained |> 
+    stable(caption=paste0("Total Variance Explained for function \"",fit$fn  ,"\" calculated with \"values\" argument for rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) 
   
   kbl
   
 }
 ```
 
-## f_totalvar_test {.unnumbered}
+## f_totalvar_load {.unnumbered}
 
 ```{r}
-f_totalvar_test <- function(PAF){
+f_totalvar_load <- function(fit){
   
   #calculate total variance (does not change if number of factors change)
-  PAF_EigenValue <- f_eigenvalue_test(PAF)
-  PAF_Variance <- PAF_EigenValue / length(PAF$values) * 100 # ncol(data) = sum(PAF$values) = length(PAF$values)
-  PAF_SumVariance <- cumsum(PAF_EigenValue / length(PAF$values))
-  PAF_Total_Variance_Explained <- cbind("Factor number"=
-                                            seq(1, length.out = length(PAF_EigenValue[PAF_EigenValue>0])),
-                                            EigenValue = PAF_EigenValue[PAF_EigenValue>0],
-                                            Variance = PAF_Variance[PAF_EigenValue>0],
-                                            Total_Variance = PAF_SumVariance[PAF_EigenValue>0])
+  fit_EigenValue <- f_eigenvalue_load(fit)
+  fit_Variance <- fit_EigenValue / length(fit$values) * 100 # ncol(data) = sum(fit$values) = length(fit$values)
+  fit_SumVariance <- cumsum(fit_EigenValue / length(fit$values))
+  fit_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(fit_EigenValue[fit_EigenValue>0])),
+                                            EigenValue = fit_EigenValue[fit_EigenValue>0],
+                                            Variance = fit_Variance[fit_EigenValue>0],
+                                            Total_Variance = fit_SumVariance[fit_EigenValue>0])
   #display table
-  kbl <- PAF_Total_Variance_Explained |> 
-    stable(caption=paste0("Test - Total Variance Explained for function \"",PAF$fn  ,"\" calculated with loadings for rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) 
+  kbl <- fit_Total_Variance_Explained |> 
+    stable(caption=paste0("Test - Total Variance Explained for function \"",fit$fn  ,"\" calculated with loadings for rotation \"", fit$rotation, "\" and ", fit$factors, " factors")) 
   
   kbl
 }
@@ -652,17 +653,17 @@ f_totalvar_test <- function(PAF){
 # k=4
 # PAFn_norot <- f_PAFn(data_img_EFA,nf,"none")
 # 
-# f_totalvar_PCA(PAFn_norot[[k]])
-# f_totalvar_PAF(PAFn_norot[[k]])
-# f_totalvar_test(PAFn_norot[[k]])
+# f_totalvar_val(PAFn_norot[[k]])
+# f_totalvar_eval(PAFn_norot[[k]])
+# f_totalvar_load(PAFn_norot[[k]])
 # # print("----")
-# f_totalvar_PCA(PAFn[[k]])
-# f_totalvar_PAF(PAFn[[k]])
-# f_totalvar_test(PAFn[[k]])
+# f_totalvar_val(PAFn[[k]])
+# f_totalvar_eval(PAFn[[k]])
+# f_totalvar_load(PAFn[[k]])
 # # print("----")
-# f_totalvar_PCA(PAFn_obl[[k]])
-# f_totalvar_PAF(PAFn_obl[[k]])
-# f_totalvar_test(PAFn_obl[[k]])
+# f_totalvar_val(PAFn_obl[[k]])
+# f_totalvar_eval(PAFn_obl[[k]])
+# f_totalvar_load(PAFn_obl[[k]])
 ```
 
 ```{r, echo=F}
@@ -671,14 +672,14 @@ f_totalvar_test <- function(PAF){
 # PCAn_norot <- f_PCAn(data_img_EFA,nf,"none")
 # PCAn_obl <- f_PCAn(data_img_EFA,nf,"promax")
 # 
-# f_totalvar_PCA(PCAn_norot[[k]])
-# f_totalvar_test(PCAn_norot[[k]])
+# f_totalvar_val(PCAn_norot[[k]])
+# f_totalvar_load(PCAn_norot[[k]])
 # # print("----")
-# f_totalvar_PCA(PCAn[[k]])
-# f_totalvar_test(PCAn[[k]])
+# f_totalvar_val(PCAn[[k]])
+# f_totalvar_load(PCAn[[k]])
 # # print("----")
-# f_totalvar_PCA(PCAn_obl[[k]])
-# f_totalvar_test(PCAn_obl[[k]])
+# f_totalvar_val(PCAn_obl[[k]])
+# f_totalvar_load(PCAn_obl[[k]])
 ```
 
 # Data preparation {.unnumbered}
@@ -835,21 +836,37 @@ f_scree(PAF1)
 f_kaiser(PAF1)
 ```
 
-#### Total variance explained
+#### Total variance explained {.tabset}
+
+##### from e.values
 
 ```{r}
-f_totalvar_PAF(PAF1)
+f_totalvar_eval(PAF1)
 ```
 
+##### from values
+
 ```{r}
-f_totalvar_test(PAF1)
+f_totalvar_val(PAF1)
+```
+
+##### from loadings
+```{r}
+f_totalvar_load(PAF1)
+```
+
+#### {.unlisted .unnumbered}
+
+### Factor number selection
+
+```{r}
+# select nb of factors to explore
+nf = c(5,6,7,8)
 ```
 
 ### n factor PAF orthogonal
 
-```{r, results='asis'}
-# select nb of factors to test
-nf = c(5,6,7,8)
+```{r}
 PAFn <- f_PAFn(data_img_EFA, nf, "varimax")
 ```
 
@@ -862,12 +879,15 @@ for (i in 1:length(nf)) {
     cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
     
     cat("###### from e.values {.unnumbered}" ,"\n")
-    print(f_totalvar_PAF(PAFn[[i]]))
-    
+    print(f_totalvar_eval(PAFn[[i]]))
     cat("\n")
-    cat("###### from loadings {.unnumbered}" ,"\n")
-    print(f_totalvar_test(PAFn[[i]]))
     
+    cat("###### from values {.unnumbered}" ,"\n")
+    print(f_totalvar_val(PAFn[[i]]))
+    cat("\n")   
+    
+    cat("###### from loadings {.unnumbered}" ,"\n")
+    print(f_totalvar_load(PAFn[[i]]))
     cat("\n\n")  
 }
 ```
@@ -889,7 +909,7 @@ for (i in 1:length(nf)) {
     cat("\n")
     
     cat("###### from loadings {.unnumbered}" ,"\n")
-    print(f_communality_test(PAFn[[i]]))
+    print(f_communality_load(PAFn[[i]]))
   
     cat("\n\n")
 }
@@ -930,12 +950,15 @@ for (i in 1:length(nf)) {
     cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
     
     cat("###### from e.values {.unnumbered}" ,"\n")
-    print(f_totalvar_PAF(PAFn_obl[[i]]))
-    
+    print(f_totalvar_eval(PAFn_obl[[i]]))
     cat("\n")
+    
+    cat("###### from values {.unnumbered}" ,"\n")
+    print(f_totalvar_val(PAFn_obl[[i]]))
+    cat("\n")
+    
     cat("###### from loadings {.unnumbered}" ,"\n")
-    print(f_totalvar_test(PAFn_obl[[i]]))
-  
+    print(f_totalvar_load(PAFn_obl[[i]]))
     cat("\n\n")
 }
 ```
@@ -957,7 +980,7 @@ for (i in 1:length(nf)) {
     cat("\n")
     
     cat("###### from loadings {.unnumbered}" ,"\n")
-    print(f_communality_test(PAFn_obl[[i]]))
+    print(f_communality_load(PAFn_obl[[i]]))
   
     cat("\n\n")
 }
