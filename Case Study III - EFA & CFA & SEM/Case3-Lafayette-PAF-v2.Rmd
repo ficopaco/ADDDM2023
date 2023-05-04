@@ -1,0 +1,1968 @@
+---
+title: "Case Study 3: Galeries Lafayette"
+author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
+date: "`r Sys.Date()`"
+abstract:
+  Identify the key drivers of brand equity for Galeries Lafayette based on a questionnaire mailed to 5000 customers and returned by 600 of them
+output: 
+  html_document: 
+    theme: readable
+    highlight: pygments
+    toc: true
+    toc_depth: 6
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    number_sections: F
+---
+
+```{css, echo=FALSE}
+  #TOC {
+    max-width: fit-content;
+    white-space: nowrap;
+  }
+  
+  div:has(> #TOC) {
+    display: flex;
+    flex-direction: row-reverse;
+}
+```
+
+> *This analysis was prepared by Francisco Arrieta and Jonathan Edwards.*
+
+------------------------------------------------------------------------
+
+# General Setup {.unnumbered}
+
+```{r knitr setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) #display source code in output
+knitr::opts_chunk$set(message = FALSE, warning = FALSE) #display warnings and error messages
+```
+
+```{r cleardata, include=FALSE}
+rm(list=ls()) # clear the data
+```
+
+```{r}
+# options(scipen=999) #prevent scientific notation
+# options(scipen=-999) #encourage scientific notation
+options(scipen=0) #encourage scientific notation neutral?
+```
+
+## Libraries {.unnumbered}
+
+```{r activate libraries}
+# modelling
+library(psych) #factor analysis tools (PAF PAF)
+library(lavaan) #causal analysis
+library(lm.beta) # add standarized regression coeffs
+
+# stats
+library(nortest) #Kolmogorov-Smirnov-Test
+library(corrplot) #correlation matrix plot
+library(olsrr)  #VIF and Tolerance Values
+library(pastecs) # provides function stat.desc
+library(REdaS) #Bartelett's Test
+
+# plotting & formatting
+library(ggplot2) #better graphs
+library(patchwork) # provides wrap_plots for multiplotting 
+# library(gridExtra) #provides multiplotting functionality
+# library(ggpubr) #provides ggarrange for multiplotting (patchwork better though)
+library(semPlot) #for visualization of path diagrams (SEM)
+library(lavaanPlot) #for visualization of path diagrams (SEM)
+# library(rcompanion)   #Histogram and Normal Curve
+library(kableExtra) #makes nice tables
+
+# generic
+library(dplyr) #useful data manip functions like arrange, distinct, rename etc included in fpp3
+library(stringr) # provides string manip functions like str_split_fixed 
+library(Hmisc) #describe function that describes features of dataframes
+library(data.table) # creating and manipulating datatables
+library(knitr) #rmarkdown tools not sure why useful
+library(parameters) #get model outputs in table form (good for making tabs)
+```
+
+# Formatting {.unnumbered}
+
+## Tables {.unnumbered}
+
+```{r}
+# kable table layout options
+# do not display NAs and only 2 digits
+opts <- options(knitr.kable.NA = '') #knitr.table.format = "latex"
+
+# define table styling options
+stable <- function(data, digits = 2, caption="") {
+  knitr::kable(data, digits=digits, caption=caption) |> 
+    # kable_styling(c("striped", "condensed"))
+    kable_paper(full_width = T)
+}
+```
+
+# Functions in alphabetical order {.unnumbered}
+
+## f_AVE
+
+```{r}
+f_AVE <- function(lambda, theta){
+  
+  results <- data.frame()
+  
+  # create lambda matrix with ones instead of std.all
+  ones <- lambda
+  ones[ones>0] <- 1
+  
+  # a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+  theta_lb <- theta %*% ones
+  
+  # calculate Average Variance Extracted (should be above .5)
+  AVE <- (t(lambda) %*% lambda) / (t(lambda) %*% lambda + t(theta_lb) %*% ones )
+  
+  # replace all values satisfying condition with NaN for visibility
+  AVE_fail <- AVE
+  AVE_fail[AVE_fail>.5] <- NaN
+  
+  # test result
+  
+  if (length(AVE_fail[!is.na(AVE_fail)])>0){
+      results["Average Variance Extracted","Result"] <- "Fail"
+    } else {
+      results["Average Variance Extracted","Result"] <- "Pass"
+    }
+  
+    kbl <- results |> 
+      stable() |>
+      row_spec(which(results[,"Result"]=="Pass"), bold = T, color = "white", background = "#78BE20") |>
+      row_spec(which(results[,"Result"]=="Fail"), bold = T, color = "white", background = "red")
+  
+  return(list(kbl,AVE,AVE_fail))
+}
+```
+
+## f_bartlett {.unnumbered}
+
+```{r}
+f_bartlett <- function(data){
+  # bartlett's test (p-value < 0.5)
+  bart_spher(data)
+}
+```
+
+## f_communality {.unnumbered}
+
+```{r}
+# communalities (exclude variables if < 0.3)
+f_communality <- function(PAF){
+  
+    communality <- data.table("Item"=names(PAF$communality), 
+                             "Communality"=as.numeric(PAF$communality))
+
+    # Sort table
+    communality <- communality |>
+      setorder(cols = "Communality")
+    
+    # Display table
+    kbl <- communality |> 
+              stable(caption=paste0("Communality for function \"",PAF$fn  ,"\" with rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) |>
+              row_spec(which(communality[,1]<.3), bold = T, color = "white", background = "red")
+    
+    kbl 
+}
+```
+
+## f_communality_test {.unnumbered}
+
+```{r}
+# test to see if function calculates communality from loadings
+f_communality_test <- function(PAF){
+ 
+  communality_calc <- numeric()
+  for (i in 1:nrow(PAF$loadings)){
+    
+    # test communality calculation
+    variableloading = PAF$loadings[i,] # loadings 1st variable
+    communality_calc[i] = sum(variableloading^2)
+    names(communality_calc)[i] <- names(PAF$loadings[,1])[i]
+    # print(paste0("Communality for ", names(PAF$loadings[,1])[i]," = ", communality_calc[i]))
+    
+  }
+  
+    communality <- data.table("Item"=names(communality_calc), 
+                             "Communality"=as.numeric(communality_calc))
+
+    # Sort table
+    communality <- communality |>
+      setorder(cols = "Communality")
+    
+    # Display table
+    kbl <- communality |> 
+              stable(caption=paste0("Test- Communality calculated from loadings for function \"",PAF$fn  ,"\" with rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) |>
+              row_spec(which(communality[,1]<.3), bold = T, color = "white", background = "red")
+    
+    kbl   
+}
+```
+
+```{r, echo=F}
+# k=1
+# f_communality(PAFn_norot[[k]])
+# f_communality_test(PAFn_norot[[k]])
+# # print("----")
+# f_communality(PAFn[[k]])
+# f_communality_test(PAFn[[k]])
+# # print("----")
+# f_communality(PAFn_obl[[k]])
+# f_communality_test(PAFn_obl[[k]])
+```
+
+```{r, echo=F}
+# k=1
+# f_communality(PCAn_norot[[k]])
+# f_communality_test(PCAn_norot[[k]])
+# # print("----")
+# f_communality(PCAn[[k]])
+# f_communality_test(PCAn[[k]])
+# # print("----")
+# f_communality(PCAn_obl[[k]])
+# f_communality_test(PCAn_obl[[k]])
+```
+
+## f_construct_corr
+
+```{r}
+f_construct_corr <- function(psi){
+  
+  results <- data.frame()
+  
+  # correlations between constructs (factors...) should be lower than .7
+  # replace all values satisfying condition with NaN for visibility
+  psi_fail <- psi
+  psi_fail[psi_fail<.7] <- NaN
+
+  # replace diagonal of psi matrix with NA
+  diag(psi_fail) <- NaN
+  
+  # test result
+  
+  if (length(psi_fail[!is.na(psi_fail)])>0){
+      results["Construct Correlations","Result"] <- "Fail"
+    } else {
+      results["Construct Correlations","Result"] <- "Pass"
+    }
+  
+    kbl <- results |> 
+      stable() |>
+      row_spec(which(results[,"Result"]=="Pass"), bold = T, color = "white", background = "#78BE20") |>
+      row_spec(which(results[,"Result"]=="Fail"), bold = T, color = "white", background = "red")
+  
+  return(list(kbl,psi,psi_fail))
+}
+```
+
+## f_construct_rel
+
+```{r}
+f_construct_rel <- function(lambda, theta){
+  
+  results <- data.frame()
+  
+  # create lambda matrix with ones instead of std.all
+  ones <- lambda
+  ones[ones>0] <- 1
+  
+  # a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+  theta_lb <- theta %*% ones
+  
+  # calculate construct reliability (should be above .6)
+  constrrel <- (t(lambda) %*% ones)^2 / ((t(lambda) %*% ones)^2 + t(theta_lb) %*% ones )
+  
+  # replace all values satisfying condition with NaN for visibility
+  constrrel_fail <- constrrel
+  constrrel_fail[constrrel_fail>.6] <- NaN
+  
+  # test result
+  
+  if (length(constrrel_fail[!is.na(constrrel_fail)])>0){
+      results["Construct Reliability","Result"] <- "Fail"
+    } else {
+      results["Construct Reliability","Result"] <- "Pass"
+    }
+  
+    kbl <- results |> 
+      stable() |>
+      row_spec(which(results[,"Result"]=="Pass"), bold = T, color = "white", background = "#78BE20") |>
+      row_spec(which(results[,"Result"]=="Fail"), bold = T, color = "white", background = "red")
+  
+  return(list(kbl,constrrel,constrrel_fail))
+}
+```
+
+## f_corr_matrix {.unnumbered}
+
+```{r}
+#plot correlation matrix adjusting parameters to see previously identified groupings
+f_corr_matrix <- function(data){
+corr_matrix <- cor(data)
+corrplot(as.matrix(corr_matrix), 
+         method = "color", #col = c("white","white","white","white","white", "lightgrey", "darkgrey", "black"),
+         order = "hclust", addrect = 10, rect.col="black", # rect.col="red",
+         addCoef.col = 'black', number.cex = .5,
+         tl.col ="black", 
+         tl.cex = 0.80, 
+         )
+}
+```
+
+## f_eigenvalue_test {.unnumbered}
+
+```{r}
+f_eigenvalue_test <- function(PAF){
+
+  Eigenvalue <- numeric()
+  for (i in 1:ncol(PAF$loadings)){
+  
+    # test eigenvalue calculation
+    factorloadings = PAF$loadings[,i] # loadings 1st factor (default is nfactors = 1)
+    Eigenvalue[i] = sum(factorloadings^2)
+    # print(paste0("Eigenvalue factor ",names(PAF$loadings[1,])[i] ," = ", Eigenvalue))
+    
+  }
+Eigenvalue
+}
+```
+
+## f_fornell_larcker
+
+```{r}
+f_fornell_larcker <- function(psi, AVE){
+  
+  results <- data.frame()
+  
+  #psi matrix squared
+  psi2 <- psi^2
+  
+  # replace diagonal of psi matrix with AVE values
+  diag(psi2) <- diag(AVE)
+  
+  # create matrix with columns filled with AVE
+  AVE_full <- AVE
+  AVE_full[is.na(AVE_full)] <- 0 #replace NAs with 0s
+  AVE_full <- AVE_full^0 %*% AVE_full # multiply a matrix full of ones with AVE_full to get columns filled with AVE
+  
+  # AVE should be higher than squared correlations between constructs
+  # substract matrices any psi bigger than AVE will be negative
+  AVEpsi_fail <- AVE_full - psi2
+  # AVE_full - psi2
+  AVEpsi_fail[AVEpsi_fail >= 0] <- NaN
+  
+  # test result
+  
+  if (length(AVEpsi_fail[!is.na(AVEpsi_fail)])>0){
+      results["Fornell-Larcker Criteria","Result"] <- "Fail"
+    } else {
+      results["Fornell-Larcker Criteria","Result"] <- "Pass"
+    }
+  
+    kbl <- results |> 
+      stable() |>
+      row_spec(which(results[,"Result"]=="Pass"), bold = T, color = "white", background = "#78BE20") |>
+      row_spec(which(results[,"Result"]=="Fail"), bold = T, color = "white", background = "red")
+     
+  return(list(kbl,psi2,AVEpsi_fail))
+}
+```
+
+
+## f_global_fit_measures {.unnumbered}
+
+```{r}
+f_global_fit_measures <- function(fit){
+    
+  sum <- summary(fit, fit.measures=TRUE, standardized=TRUE)
+  
+  test_selection = c("pvalue","chisq","cfi", "rmsea")
+  results <- data.frame(Value=sum$fit[test_selection])
+  
+  #chi squared pvalue
+  if (results["pvalue","Value"] > 0.05){
+      results["pvalue","Result"] <- "PASS"
+      results["pvalue","Result_bool"] <- 2
+    } else {
+      results["pvalue","Result"] <- "FAIL"
+      results["pvalue","Result_bool"] <- 0
+    }
+  
+  #chi squared
+  results["chisq","Result"] <- "-"
+  
+  #CFI
+  if (results["cfi","Value"] < 0.9){
+      results["cfi","Result"] <- "Definitely reject the model"
+      results["cfi","Result_bool"] <- 0
+    } else if (results["cfi","Value"]>0.95) {
+      results["cfi","Result"] <- "Accept model"
+      results["cfi","Result_bool"] <- 2
+    } else {
+      results["cfi","Result"] <- "High under-rejection rate"
+      results["cfi","Result_bool"] <- 1
+    }
+  
+  #RMSEA
+  if (results["rmsea","Value"] <= 0.05){
+      results["rmsea","Result"] <- "Good fit"
+      results["rmsea","Result_bool"] <- 2
+    } else if (results["rmsea","Value"] <= 0.08 | results["rmsea","Value"] > 0.05) {
+      results["rmsea","Result"] <- "Acceptable fit"
+      results["rmsea","Result_bool"] <- 1
+    } else if (results["rmsea","Value"] <= 0.1 | results["rmsea","Value"] > 0.08) {
+      results["rmsea","Result"] <- "Bad fit"
+      results["rmsea","Result_bool"] <- 0
+    } else {
+      results["rmsea","Result"] <- "Unacceptable fit"
+      results["rmsea","Result_bool"] <- 0
+    }
+
+  kbl <- results |> 
+    stable(3) |>
+    row_spec(which(results[,"Result_bool"]==2), bold = T, color = "white", background = "#78BE20") |>
+    row_spec(which(results[,"Result_bool"]==1), bold = T, color = "white", background = "orange") |>
+    row_spec(which(results[,"Result_bool"]==0), bold = T, color = "white", background = "red")
+  
+  return(list(remove_column(kbl, 4), sum))
+}
+```
+
+## f_indic_rel
+
+```{r}
+f_indic_rel <- function(lambda, theta){
+  
+  results <- data.frame()
+  
+  # create lambda matrix with ones instead of std.all
+  ones <- lambda
+  ones[ones>0] <- 1
+  
+  # a matrix with dimensions of lambda matrix but with lambdas replaced by thetas
+  theta_lb <- theta %*% ones
+  
+  # calculate indicator reliabilities (should be larger than 0.4)
+  indicrel <- lambda^2/(lambda^2 + theta_lb)
+  # indicrel
+  
+  # replace all values satisfying condition with NaN for visibility
+  indicrel_fail <- indicrel
+  indicrel_fail[indicrel_fail>.4] <- NaN
+  
+  # test result
+  
+  if (length(indicrel_fail[!is.na(indicrel_fail)])>0){
+      results["Individual Item Reliability","Result"] <- "Fail"
+    } else {
+      results["Individual Item Reliability","Result"] <- "Pass"
+    }
+  
+    kbl <- results |> 
+      stable() |>
+      row_spec(which(results[,"Result"]=="Pass"), bold = T, color = "white", background = "#78BE20") |>
+      row_spec(which(results[,"Result"]=="Fail"), bold = T, color = "white", background = "red")
+  
+  return(list(kbl,indicrel,indicrel_fail))
+}
+```
+
+## f_kaiser {.unnumbered}
+
+```{r}
+f_kaiser <- function(PAF){
+
+  #kaiser criterion (retain factors with eigenvalues >1)
+  PAF_kaiser_nb <- length(which(PAF$e.values > 1))
+  print(paste0("Kaiser number = ",PAF_kaiser_nb))
+  
+}
+```
+
+## f_loadings {.unnumbered}
+
+```{r}
+# factor loading functions
+f_loadings <- function(PAF){
+ 
+      # print(PAF$loadings, cutoff=0.3)
+      # print(print_html(model_parameters(PAF, loadings=T, threshold = 0.3, summary=T))) 
+      kbl <- model_parameters(PAF, loadings=T, threshold = 0.3, summary=T) |>
+        stable()
+      kbl 
+}
+```
+
+## f_MSA {.unnumbered}
+
+```{r}
+f_MSA <- function(data){
+
+  # Anti-image Correlation (MSA > 0.5)
+  MSA_list <- data.table("Item"=names(KMOTEST$MSA), "MSA"=as.numeric(KMOTEST$MSA))
+  
+  # Sort table
+  MSA_list<- MSA_list |> 
+    setorder(cols = "MSA")
+  
+  # Display table
+  kbl_MSA <- MSA_list |> 
+          stable(3) |>
+          row_spec(which(MSA_list[,2]<0.5), bold = T, color = "white", background = "red")
+  
+  kbl_MSA
+  
+}
+```
+
+## f_PAFn {.unnumbered}
+
+```{r}
+# create multiple paf's with different number of factors
+f_PAFn <- function(data, nf=1, rotation){
+  
+  # perform multiple PAFs one for each factor number in selection
+  PAFn = list()
+  
+  i=1
+  for (n in nf) {
+    PAFn[[i]] <- psych::fa(data, rotate=rotation, scores=TRUE, nfactors = n)
+    i=i+1
+  }
+  names(PAFn) <- nf
+  
+  PAFn
+}
+```
+
+## f_PCAn {.unnumbered}
+
+```{r}
+# create multiple paf's with different number of factors
+f_PCAn <- function(data, nf=1, rotation){
+  
+  # perform multiple PAFs one for each factor number in selection
+  PCAn = list()
+  
+  i=1
+  for (n in nf) {
+    PCAn[[i]] <- psych::principal(data, rotate=rotation, scores=TRUE, nfactors = n)
+    i=i+1
+  }
+  names(PCAn) <- nf
+  
+  PCAn
+}
+```
+
+## f_scree {.unnumbered}
+
+```{r}
+f_scree <- function(PAF){
+  
+  #display Scree-plot (retain factors before elbow)
+  plot(PAF$e.values,xlab="Factor Number",
+       ylab="Eigenvalue",
+       main="Scree plot",
+       cex.lab=1.2,
+       cex.axis=1.2,
+       cex.main=1.8,
+       col = "#0099F8",
+       pch = 19) 
+  abline(h=1, col = "#7F35B2")
+  
+}
+```
+
+## f_totalvar_PAF {.unnumbered}
+
+```{r}
+f_totalvar_PAF <- function(PAF){
+  
+  #calculate total variance (does not change if number of factors change)
+  PAF_EigenValue <- PAF$e.values
+  PAF_Variance <- PAF_EigenValue / length(PAF$e.values) * 100 # ncol(data) = sum(PAF1$e.values) = length(PAF1$e.values)
+  PAF_SumVariance <- cumsum(PAF_EigenValue / length(PAF$e.values))
+  PAF_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(PAF_EigenValue[PAF_EigenValue>0])),
+                                            EigenValue = PAF_EigenValue[PAF_EigenValue>0],
+                                            Variance = PAF_Variance[PAF_EigenValue>0],
+                                            Total_Variance = PAF_SumVariance[PAF_EigenValue>0])
+  #display table
+  kbl <- PAF_Total_Variance_Explained |> 
+    stable(caption=paste0("Total Variance Explained for function \"",PAF$fn  ,"\" calculated with \"e.values\" argument for rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) 
+  
+  kbl
+  
+}
+```
+
+## f_totalvar_PCA {.unnumbered}
+
+```{r}
+f_totalvar_PCA <- function(PCA){
+  
+  #calculate total variance (does not change if number of factors change)
+  PCA_EigenValue <- PCA$values
+  PCA_Variance <- PCA_EigenValue / length(PCA$values) * 100 # ncol(data) = sum(PCA$values) = length(PCA$values)
+  PCA_SumVariance <- cumsum(PCA_EigenValue / length(PCA$values))
+  PCA_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(PCA_EigenValue[PCA_EigenValue>0])),
+                                            EigenValue = PCA_EigenValue[PCA_EigenValue>0],
+                                            Variance = PCA_Variance[PCA_EigenValue>0],
+                                            Total_Variance = PCA_SumVariance[PCA_EigenValue>0])
+  #display table
+  kbl <- PCA_Total_Variance_Explained |> 
+    stable(caption=paste0("Total Variance Explained for function \"",PCA$fn  ,"\" calculated with \"values\" argument for rotation \"", PCA$rotation, "\" and ", PCA$factors, " factors")) 
+  
+  kbl
+  
+}
+```
+
+## f_totalvar_test {.unnumbered}
+
+```{r}
+f_totalvar_test <- function(PAF){
+  
+  #calculate total variance (does not change if number of factors change)
+  PAF_EigenValue <- f_eigenvalue_test(PAF)
+  PAF_Variance <- PAF_EigenValue / length(PAF$values) * 100 # ncol(data) = sum(PAF$values) = length(PAF$values)
+  PAF_SumVariance <- cumsum(PAF_EigenValue / length(PAF$values))
+  PAF_Total_Variance_Explained <- cbind("Factor number"=
+                                            seq(1, length.out = length(PAF_EigenValue[PAF_EigenValue>0])),
+                                            EigenValue = PAF_EigenValue[PAF_EigenValue>0],
+                                            Variance = PAF_Variance[PAF_EigenValue>0],
+                                            Total_Variance = PAF_SumVariance[PAF_EigenValue>0])
+  #display table
+  kbl <- PAF_Total_Variance_Explained |> 
+    stable(caption=paste0("Test - Total Variance Explained for function \"",PAF$fn  ,"\" calculated with loadings for rotation \"", PAF$rotation, "\" and ", PAF$factors, " factors")) 
+  
+  kbl
+}
+```
+
+```{r, echo=F}
+# # PAF check that total variance doesn't change under rotation and oblique
+# k=4
+# PAFn_norot <- f_PAFn(data_img_EFA,nf,"none")
+# 
+# f_totalvar_PCA(PAFn_norot[[k]])
+# f_totalvar_PAF(PAFn_norot[[k]])
+# f_totalvar_test(PAFn_norot[[k]])
+# # print("----")
+# f_totalvar_PCA(PAFn[[k]])
+# f_totalvar_PAF(PAFn[[k]])
+# f_totalvar_test(PAFn[[k]])
+# # print("----")
+# f_totalvar_PCA(PAFn_obl[[k]])
+# f_totalvar_PAF(PAFn_obl[[k]])
+# f_totalvar_test(PAFn_obl[[k]])
+```
+
+```{r, echo=F}
+# # PCA check that total variance doesn't change under rotation and oblique
+# k=4
+# PCAn_norot <- f_PCAn(data_img_EFA,nf,"none")
+# PCAn_obl <- f_PCAn(data_img_EFA,nf,"promax")
+# 
+# f_totalvar_PCA(PCAn_norot[[k]])
+# f_totalvar_test(PCAn_norot[[k]])
+# # print("----")
+# f_totalvar_PCA(PCAn[[k]])
+# f_totalvar_test(PCAn[[k]])
+# # print("----")
+# f_totalvar_PCA(PCAn_obl[[k]])
+# f_totalvar_test(PCAn_obl[[k]])
+```
+
+# Data preparation {.unnumbered}
+
+## Load data {.unnumbered}
+
+```{r load datasets}
+survey <- read.csv("Case Study III_Structural Equation Modeling.csv")
+labels <- read.csv("Variables and Labels_Galeries Lafayette.csv")
+
+dim(survey)
+# head(labels)
+```
+
+## Clean and handle missing data {.unnumbered}
+
+```{r}
+# # omit all unanswered
+# filter_all(survey, all_vars(. != 999))
+# filter_all(survey, any_vars(. %in% c(999)))
+# 
+# filter_all(select(survey,1:22,"SAT_1"), all_vars(. != 999))
+# filter_all(select(survey,1:22,"SAT_1"), any_vars(. %in% c(999)))
+# 
+# filter_all(data_img_EFA, all_vars(. != 999))
+# filter_all(ges, any_vars(. %in% c(999)))
+```
+
+```{r}
+# delete variables unused in analysis (see case study instructions): 
+survey <- survey |> select(-c("C_CR2", "SAT_P1", "SAT_P2", "SAT_P3", "SAT_P4", "SAT_P5", "SAT_P6", "TRU_1", "TRU_2", "TRU_3"))
+
+# replace missing data (999) with NA
+survey <- data.frame(sapply(survey,function(x) ifelse((x==999),NA,as.numeric(x))))
+```
+
+# Data exploration
+
+## labels {.unnumbered}
+
+```{r}
+#Make labels more readable
+#create copy of label column without variable code
+labels["Category"] <- sub("[^-]*\\s-","",labels[["Label"]]) 
+# labels["Category"] <- sub(".*\\s-","",labels[["Label"]])
+# labels
+
+#split this new column (category) into category and short label
+labels[c("Category","Label_short")] <- str_split_fixed(labels[["Category"]],"\\?\\s\\s|\\s-", n=2)
+# labels[20:25,c("Category","Label_short")]
+labels[,c("Variable","Category","Label_short")] |>
+  stable()
+```
+
+## Survey {.unnumbered}
+
+```{r}
+head(survey)
+```
+
+
+# Exploratory Factor Analysis {.numbered}
+
+## ROUND 1 EFA {-}
+
+### Variable selection
+
+```{r}
+# excluded image variables (in the first round of EFA we don't exclude any image variables...)
+exclude=c("Im8","Im9","Im15") 
+
+# the full survey data (includes dependent and independent variables) with excluded image variables (in this first round of EFA we don't exclude anything)
+survey_excl_img <- survey |> select(-exclude)
+
+# the data we will use for EFA (images)
+data_img_EFA <- survey_excl_img[1:(22-length(exclude))]
+
+# list of excluded variables and their meaning
+excludedvars <- filter(labels, Variable %in% exclude)[c("Variable","Label_short")] 
+excludedvars |>
+  stable(caption="Indicator variables we chose to exclude:")
+```
+
+
+
+#### handle missing data
+
+```{r}
+# delete missing data (delete listwise)
+data_img_EFA <- na.omit(data_img_EFA)
+
+dim(survey)
+dim(survey_excl_img)
+dim(data_img_EFA)
+```
+
+### Check adequacy of correlation Matrix
+
+#### correlation matrix
+
+```{r}
+f_corr_matrix(data_img_EFA)
+```
+
+Variables to look out for going forward:
+
+-   Images 9 and 11 are alone
+
+-   Pairs of images: (17,18), cluster exclusively together, have a very high correlation and similar correlation profiles meaning we might only want to keep one of them. Similar comment to a lesser degree for (6,7) and (16,19).
+
+#### Bartlett test
+
+```{r}
+# p-value < 0.5
+f_bartlett(data_img_EFA)
+```
+
+#### KMO test
+
+```{r}
+# KMO > 0.6
+KMOTEST=KMOS(data_img_EFA)
+# print(KMOTEST, sort=T)
+KMOTEST$KMO
+```
+
+The KMO of `r KMOTEST$KMO` is above 0.6 which indicates the data is well suited for factor anlysis.
+
+#### Anti-image Correlation (MSA)
+
+```{r}
+# MSA > 0.5
+f_MSA(data_img_EFA)
+```
+
+### Determine number of factors
+
+```{r}
+# factor analysis
+PAF1 <- psych::fa(data_img_EFA, rotate="varimax", scores=TRUE)
+# note: by default number of factors = 1 if it is not specified
+
+```
+
+#### Scree
+
+```{r}
+f_scree(PAF1)
+```
+
+#### Kaiser Criterion
+
+```{r}
+f_kaiser(PAF1)
+```
+
+#### Total variance explained
+
+```{r}
+f_totalvar_PAF(PAF1)
+```
+
+```{r}
+f_totalvar_test(PAF1)
+```
+
+### n factor PAF orthogonal
+
+```{r, results='asis'}
+# select nb of factors to test
+nf = c(5,6,7,8)
+PAFn <- f_PAFn(data_img_EFA, nf, "varimax")
+```
+
+#### Total variance explained {.tabset}
+
+```{r, results='asis'}
+# Total variance explained
+for (i in 1:length(nf)) {
+
+    cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
+    
+    cat("###### from e.values {.unnumbered}" ,"\n")
+    print(f_totalvar_PAF(PAFn[[i]]))
+    
+    cat("\n")
+    cat("###### from loadings {.unnumbered}" ,"\n")
+    print(f_totalvar_test(PAFn[[i]]))
+    
+    cat("\n\n")  
+}
+```
+
+#### {.unlisted .unnumbered}
+
+#### Communality {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors (eliminate variables with communality < 0.3)
+
+for (i in 1:length(nf)) {
+
+    cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
+  
+    cat("###### from function {.unnumbered}" ,"\n")
+    print(f_communality(PAFn[[i]]))
+    
+    cat("\n")
+    
+    cat("###### from loadings {.unnumbered}" ,"\n")
+    print(f_communality_test(PAFn[[i]]))
+  
+    cat("\n\n")
+}
+```
+
+#### {.unlisted .unnumbered}
+
+#### Factor loadings {.tabset}
+
+```{r, results='asis'}
+
+# loadings for all selected number of factors
+
+for (i in 1:length(nf)) {
+  
+    cat("##### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+    print(f_loadings(PAFn[[i]]))
+      
+    cat("\n\n")
+}
+```
+
+#### {.unlisted .unnumbered}
+
+### n factor PAF oblique
+
+```{r}
+PAFn_obl = f_PAFn(data_img_EFA, nf, "promax")
+```
+
+#### Total variance explained {.tabset}
+
+```{r, results='asis'}
+# Total variance explained
+for (i in 1:length(nf)) {
+
+    cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
+    
+    cat("###### from e.values {.unnumbered}" ,"\n")
+    print(f_totalvar_PAF(PAFn_obl[[i]]))
+    
+    cat("\n")
+    cat("###### from loadings {.unnumbered}" ,"\n")
+    print(f_totalvar_test(PAFn_obl[[i]]))
+  
+    cat("\n\n")
+}
+```
+
+#### {.unlisted .unnumbered}
+
+#### Communalities {.tabset}
+
+```{r, results='asis'}
+#communalities for all selected number of factors (eliminate variables with communality < 0.3)
+
+for (i in 1:length(nf)) {
+
+    cat("##### Number of factors =", nf[[i]], "{.unnumbered .tabset}" ,"\n")
+  
+    cat("###### from function {.unnumbered}" ,"\n")
+    print(f_communality(PAFn_obl[[i]]))
+    
+    cat("\n")
+    
+    cat("###### from loadings {.unnumbered}" ,"\n")
+    print(f_communality_test(PAFn_obl[[i]]))
+  
+    cat("\n\n")
+}
+```
+
+####  {.unlisted .unnumbered}
+
+#### Factor loadings {.tabset}
+
+```{r, results='asis'}
+
+# loadings for all selected number of factors
+
+for (i in 1:length(nf)) {
+  
+cat("##### Number of factors =", nf[[i]], "{.unnumbered}" ,"\n")
+  
+    print(f_loadings(PAFn_obl[[i]]))
+      
+cat("\n\n")
+
+}
+```
+
+#### {.unlisted .unnumbered}
+
+# Confirmatory factor analysis
+
+We test whether the constructs found in the exploratory phase adequately describe what is going on.
+
+
+## Define the model
+
+```{r}
+# 6 factors
+# no excluded variables
+model_CFA <- "
+DECO =~ Im3 + Im4 + Im5
+FRENCH =~ Im6 + Im7 + Im8 + Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+QUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2 + Im15 + Im16 + Im19
+BRAND =~ Im17 + Im18 + Im9
+"
+
+# # excluded variables: Im9, Im15, Im16, Im19
+# model_CFA <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FRENCH =~ Im6 + Im7 + Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# "
+
+# # excluded variables: Im9, Im15, Im16, Im19, Im8
+# model_CFA <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FRENCH =~ Im6 + Im7 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# "
+```
+
+```{r}
+# 7 factors
+
+# # excluded variables: Im9, Im15, Im16, Im19, Im8
+# model_CFA <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# "
+
+# # excluded variables: Im9, Im15, Im16, Im19
+# model_CFA <- "
+# QUAL =~ Im11 + Im12 + Im13
+# FOOD =~ Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# "
+
+```
+
+Based on the modification indices we create a new model
+
+```{r}
+# 8 factor model
+# # no excluded variables:
+# model_CFA <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im8 + Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2 + Im15 + Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7 + Im9
+# "
+
+# MIs indicate separate Im1, Im2 and Im16, Im19 no excluded variables
+# Im8 under FRENCH
+# exclude Im8
+# exclude Im15
+# exclude Im9
+model_CFA <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+"
+
+
+# # 8 factor model: excluded variables: Im9, Im15, Im8, Im11
+# model_CFA <- "
+# QUAL =~ Im12 + Im13
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# DECO =~ Im3 + Im4 + Im5
+# CHOICE =~ Im1 + Im2
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# PROF =~ Im16 + Im19
+# "
+```
+
+### Fit
+
+```{r}
+fit_CFA <- cfa(model_CFA, data=survey, missing="ML")
+```
+
+### SEM plot
+
+```{r, fig.height=8}
+# semPaths(fit_CFA, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2),
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5,
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+semPaths(fit_CFA, what = "path", whatLabels = "std", style = "mx",
+         rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2),
+         nCharNodes = 7,shapeMan = "rectangle",
+         sizeMan = 4, sizeMan2 = 3, sizeInt = 2, sizeLat = 6, asize = 1.5,
+         curvePivot=TRUE, edge.label.cex = .8, edge.color = "skyblue4"
+         )
+
+
+# semPaths(fit_SEM, what = "col", whatLabels = "par", style = "ram",
+#          rotation = 2, layout = "tree3",
+#          mar = c(1, 2, 1, 2), #margins
+#          nCharNodes = 7,
+#          shapeMan = "rectangle", # variable shape
+#          sizeMan = 4, # variable shape size
+#          sizeMan2 = 3, # variable shape vertical stretch
+#          # structural = T, # don't plot image variables (manifests)
+#          sizeInt = 1, # intercept size
+#          intercepts = F, # don't include intercepts
+#          sizeLat = 5, #factor size
+#          asize = 2, # arrow size
+#          curvePivot=T, # edge broken curve
+#          edge.label.cex = .5, # edge label size
+#          # edge.color = "skyblue4",
+#          # levels= c(1,2,7,8,9,10),
+#          groups = "latents",
+#          cut = .5 #cutoff for edges,
+#          )
+
+# semPaths(fit_SEM, what = "est", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3",
+#          mar = c(1, 2, 1, 2), #margins
+#          nCharNodes = 7,
+#          shapeMan = "rectangle", # variable shape
+#          sizeMan = 4, # variable shape size
+#          sizeMan2 = 3, # variable shape vertical stretch
+#          structural = T, # don't plot image variables (manifests)
+#          sizeInt = 1, # intercept size
+#          intercepts = F, # don't include intercepts
+#          sizeLat = 5, #factor size
+#          asize = 2, # arrow size
+#          curvePivot=T, # edge broken curve
+#          edge.label.cex = .6, # edge label size
+#          edge.color = "skyblue4",
+#          # levels= c(1,2,7,8,9,10),
+#          # groups = "latents",
+#          cut = .4 #cutoff for edges,
+#          )
+```
+
+
+## Global fit measures
+
+```{r}
+global_fit_measures <- f_global_fit_measures(fit_CFA)
+# check global fit pass/fail of global fit measures
+global_fit_measures[[1]]
+# output full summary
+global_fit_measures[[2]]
+```
+
+
+## local fit measures
+
+```{r}
+lambda = inspect(fit_CFA, what="std")$lambda
+theta = inspect(fit_CFA, what="std")$theta
+psi = inspect(fit_CFA, what="std")$psi
+```
+
+### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indic_rel <- f_indic_rel(lambda, theta)
+# pass/fail
+indic_rel[[1]]
+# details
+indic_rel[[2]]
+indic_rel[[3]]
+```
+
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(fit_CFA, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(fit_CFA, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+construct_rel <- f_construct_rel(lambda,theta)
+# pass/fail
+construct_rel[[1]]
+# details
+construct_rel[[2]]
+construct_rel[[3]]
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- f_AVE(lambda,theta)
+# pass/fail
+AVE[[1]]
+# details
+AVE[[2]]
+AVE[[3]]
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted
+std.loadings<- inspect(fit_CFA, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+### Construct correlations
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+construct_cor <- f_construct_corr(psi)
+# pass / fail
+construct_cor[[1]]
+# details
+construct_cor[[2]]
+construct_cor[[3]]
+```
+
+### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+fornell_larcker <- f_fornell_larcker(psi,AVE[[2]])
+# pass / fail
+fornell_larcker[[1]]
+# details (note: AVE is in the diagonals)
+fornell_larcker[[2]]
+fornell_larcker[[3]]
+```
+
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(fit_CFA, "std")
+std_fit1$psi^2
+```
+
+## Modification indices
+
+```{r}
+arrange(modificationindices(fit_CFA),-mi) |> filter(mi>10)
+```
+
+
+---------------
+
+
+
+# SEM
+
+## Model
+
+```{r}
+# # Full model with betas
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH + si8*Im8 + si15*Im15 + si9*Im9
+# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH + ai8*Im8 + ai15*Im15 + ai9*Im9
+# 
+# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH + r0i8*Im8 + r0i15*Im15 + r0i9*Im9
+# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH + c0i8*Im8 + c0i15*Im15 + c0i9*Im9
+# 
+# rss1:= rs*s1
+# raa1:= ra*a1
+# css1:= cs*s1
+# caa1:= ca*a1
+# DECOtoRI:= r01 + rss1 + raa1
+# DECOtoCOI:= c01 + css1 + caa1
+# 
+# rss2:= rs*s2
+# raa2:= ra*a2
+# css2:= cs*s2
+# caa2:= ca*a2
+# FOODtoRI:= r02 + rss2 + raa2
+# FOODtoCOI:= c02 + css2 + caa2
+# 
+# rss3:= rs*s3
+# raa3:= ra*a3
+# css3:= cs*s3
+# caa3:= ca*a3
+# ATMOStoRI:= r03 + rss3 + raa3
+# ATMOStoCOI:= c03 + css3 + caa3
+# 
+# rss4:= rs*s4
+# raa4:= ra*a4
+# css4:= cs*s4
+# caa4:= ca*a4
+# PQUALtoRI:= r04 + rss4 + raa4
+# PQUALtoCOI:= c04 + css4 + caa4
+# 
+# rss5:= rs*s5
+# raa5:= ra*a5
+# css5:= cs*s5
+# caa5:= ca*a5
+# CHOICEtoRI:= r05 + rss5 + raa5
+# CHOICEtoCOI:= c05 + css5 + caa5
+# 
+# rss6:= rs*s6
+# raa6:= ra*a6
+# css6:= cs*s6
+# caa6:= ca*a6
+# PROFtoRI:= r06 + rss6 + raa6
+# PROFtoCOI:= c06 + css6 + caa6
+# 
+# rss7:= rs*s7
+# raa7:= ra*a7
+# css7:= cs*s7
+# caa7:= ca*a7
+# BRANDtoRI:= r07 + rss7 + raa7
+# BRANDtoCOI:= c07 + css7 + caa7
+# 
+# rss8:= rs*s8
+# raa8:= ra*a8
+# css8:= cs*s8
+# caa8:= ca*a8
+# FRENCHtoRI:= r08 + rss8 + raa8
+# FRENCHtoCOI:= c08 + css8 + caa8
+# 
+# rssi8:= rs*si8
+# raai8:= ra*ai8
+# cssi8:= cs*si8
+# caai8:= ca*ai8
+# Im8toRI:= r0i8 + rssi8 + raai8
+# Im8toCOI:= c0i8 + cssi8 + caai8
+# 
+# rssi9:= rs*si9
+# raai9:= ra*ai9
+# cssi9:= cs*si9
+# caai9:= ca*ai9
+# Im9toRI:= r0i9 + rssi9 + raai9
+# Im9toCOI:= c0i9 + cssi9 + caai9
+# 
+# rssi15:= rs*si15
+# raai15:= ra*ai15
+# cssi15:= cs*si15
+# caai15:= ca*ai15
+# Im15toRI:= r0i15 + rssi15 + raai15
+# Im15toCOI:= c0i15 + cssi15 + caai15
+# "
+
+# # delete indicator variables Im8, Im9, Im15 from mediators
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH
+# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH
+# 
+# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH + r0i8*Im8 + r0i15*Im15 + r0i9*Im9
+# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH + c0i8*Im8 + c0i15*Im15 + c0i9*Im9
+# 
+# rss1:= rs*s1
+# raa1:= ra*a1
+# css1:= cs*s1
+# caa1:= ca*a1
+# DECOtoRI:= r01 + rss1 + raa1
+# DECOtoCOI:= c01 + css1 + caa1
+# 
+# rss2:= rs*s2
+# raa2:= ra*a2
+# css2:= cs*s2
+# caa2:= ca*a2
+# FOODtoRI:= r02 + rss2 + raa2
+# FOODtoCOI:= c02 + css2 + caa2
+# 
+# rss3:= rs*s3
+# raa3:= ra*a3
+# css3:= cs*s3
+# caa3:= ca*a3
+# ATMOStoRI:= r03 + rss3 + raa3
+# ATMOStoCOI:= c03 + css3 + caa3
+# 
+# rss4:= rs*s4
+# raa4:= ra*a4
+# css4:= cs*s4
+# caa4:= ca*a4
+# PQUALtoRI:= r04 + rss4 + raa4
+# PQUALtoCOI:= c04 + css4 + caa4
+# 
+# rss5:= rs*s5
+# raa5:= ra*a5
+# css5:= cs*s5
+# caa5:= ca*a5
+# CHOICEtoRI:= r05 + rss5 + raa5
+# CHOICEtoCOI:= c05 + css5 + caa5
+# 
+# rss6:= rs*s6
+# raa6:= ra*a6
+# css6:= cs*s6
+# caa6:= ca*a6
+# PROFtoRI:= r06 + rss6 + raa6
+# PROFtoCOI:= c06 + css6 + caa6
+# 
+# rss7:= rs*s7
+# raa7:= ra*a7
+# css7:= cs*s7
+# caa7:= ca*a7
+# BRANDtoRI:= r07 + rss7 + raa7
+# BRANDtoCOI:= c07 + css7 + caa7
+# 
+# rss8:= rs*s8
+# raa8:= ra*a8
+# css8:= cs*s8
+# caa8:= ca*a8
+# FRENCHtoRI:= r08 + rss8 + raa8
+# FRENCHtoCOI:= c08 + css8 + caa8
+# 
+# 
+# Im8toRI:= r0i8
+# Im8toCOI:= c0i8
+# 
+# 
+# Im9toRI:= r0i9
+# Im9toCOI:= c0i9
+# 
+# 
+# Im15toRI:= r0i15
+# Im15toCOI:= c0i15
+# "
+
+# # delete indicator variables Im8, Im9, Im15 from end nodes
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH + si8*Im8 + si15*Im15 + si9*Im9
+# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH + ai8*Im8 + ai15*Im15 + ai9*Im9
+# 
+# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH
+# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH
+# 
+# rss1:= rs*s1
+# raa1:= ra*a1
+# css1:= cs*s1
+# caa1:= ca*a1
+# DECOtoRI:= r01 + rss1 + raa1
+# DECOtoCOI:= c01 + css1 + caa1
+# 
+# rss2:= rs*s2
+# raa2:= ra*a2
+# css2:= cs*s2
+# caa2:= ca*a2
+# FOODtoRI:= r02 + rss2 + raa2
+# FOODtoCOI:= c02 + css2 + caa2
+# 
+# rss3:= rs*s3
+# raa3:= ra*a3
+# css3:= cs*s3
+# caa3:= ca*a3
+# ATMOStoRI:= r03 + rss3 + raa3
+# ATMOStoCOI:= c03 + css3 + caa3
+# 
+# rss4:= rs*s4
+# raa4:= ra*a4
+# css4:= cs*s4
+# caa4:= ca*a4
+# PQUALtoRI:= r04 + rss4 + raa4
+# PQUALtoCOI:= c04 + css4 + caa4
+# 
+# rss5:= rs*s5
+# raa5:= ra*a5
+# css5:= cs*s5
+# caa5:= ca*a5
+# CHOICEtoRI:= r05 + rss5 + raa5
+# CHOICEtoCOI:= c05 + css5 + caa5
+# 
+# rss6:= rs*s6
+# raa6:= ra*a6
+# css6:= cs*s6
+# caa6:= ca*a6
+# PROFtoRI:= r06 + rss6 + raa6
+# PROFtoCOI:= c06 + css6 + caa6
+# 
+# rss7:= rs*s7
+# raa7:= ra*a7
+# css7:= cs*s7
+# caa7:= ca*a7
+# BRANDtoRI:= r07 + rss7 + raa7
+# BRANDtoCOI:= c07 + css7 + caa7
+# 
+# rss8:= rs*s8
+# raa8:= ra*a8
+# css8:= cs*s8
+# caa8:= ca*a8
+# FRENCHtoRI:= r08 + rss8 + raa8
+# FRENCHtoCOI:= c08 + css8 + caa8
+# 
+# rssi8:= rs*si8
+# raai8:= ra*ai8
+# cssi8:= cs*si8
+# caai8:= ca*ai8
+# Im8toRI:= rssi8 + raai8
+# Im8toCOI:= cssi8 + caai8
+# 
+# rssi9:= rs*si9
+# raai9:= ra*ai9
+# cssi9:= cs*si9
+# caai9:= ca*ai9
+# Im9toRI:= rssi9 + raai9
+# Im9toCOI:= cssi9 + caai9
+# 
+# rssi15:= rs*si15
+# raai15:= ra*ai15
+# cssi15:= cs*si15
+# caai15:= ca*ai15
+# Im15toRI:= rssi15 + raai15
+# Im15toCOI:= cssi15 + caai15
+# "
+
+# # delete indicator variables Im8, Im9, Im15 from everywhere (pretty good!)
+# model_SEM <- "
+# DECO =~ Im3 + Im4 + Im5
+# FOOD =~ Im10 + Im14
+# ATMOS =~ Im20 + Im21 + Im22
+# PRODQUAL =~ Im11 + Im12 + Im13
+# CHOICE =~ Im1 + Im2
+# PROF =~ Im16 + Im19
+# BRAND =~ Im17 + Im18
+# FRENCH =~ Im6 + Im7
+# 
+# AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+# SAT =~ SAT_1 + SAT_2 + SAT_3
+# RI =~ C_REP1 + C_REP2 + C_REP3
+# COI =~ C_CR1 + C_CR3 + C_CR4
+# 
+# SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH
+# AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH
+# 
+# RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH
+# COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH
+# 
+# rss1:= rs*s1
+# raa1:= ra*a1
+# css1:= cs*s1
+# caa1:= ca*a1
+# DECOtoRI:= r01 + rss1 + raa1
+# DECOtoCOI:= c01 + css1 + caa1
+# 
+# rss2:= rs*s2
+# raa2:= ra*a2
+# css2:= cs*s2
+# caa2:= ca*a2
+# FOODtoRI:= r02 + rss2 + raa2
+# FOODtoCOI:= c02 + css2 + caa2
+# 
+# rss3:= rs*s3
+# raa3:= ra*a3
+# css3:= cs*s3
+# caa3:= ca*a3
+# ATMOStoRI:= r03 + rss3 + raa3
+# ATMOStoCOI:= c03 + css3 + caa3
+# 
+# rss4:= rs*s4
+# raa4:= ra*a4
+# css4:= cs*s4
+# caa4:= ca*a4
+# PQUALtoRI:= r04 + rss4 + raa4
+# PQUALtoCOI:= c04 + css4 + caa4
+# 
+# rss5:= rs*s5
+# raa5:= ra*a5
+# css5:= cs*s5
+# caa5:= ca*a5
+# CHOICEtoRI:= r05 + rss5 + raa5
+# CHOICEtoCOI:= c05 + css5 + caa5
+# 
+# rss6:= rs*s6
+# raa6:= ra*a6
+# css6:= cs*s6
+# caa6:= ca*a6
+# PROFtoRI:= r06 + rss6 + raa6
+# PROFtoCOI:= c06 + css6 + caa6
+# 
+# rss7:= rs*s7
+# raa7:= ra*a7
+# css7:= cs*s7
+# caa7:= ca*a7
+# BRANDtoRI:= r07 + rss7 + raa7
+# BRANDtoCOI:= c07 + css7 + caa7
+# 
+# rss8:= rs*s8
+# raa8:= ra*a8
+# css8:= cs*s8
+# caa8:= ca*a8
+# FRENCHtoRI:= r08 + rss8 + raa8
+# FRENCHtoCOI:= c08 + css8 + caa8
+# "
+
+# delete indicator variables Im8, Im9, Im15 from everywhere and add correlation between SAT and AFCOM also between RI and COI
+model_SEM <- "
+DECO =~ Im3 + Im4 + Im5
+FOOD =~ Im10 + Im14
+ATMOS =~ Im20 + Im21 + Im22
+PRODQUAL =~ Im11 + Im12 + Im13
+CHOICE =~ Im1 + Im2
+PROF =~ Im16 + Im19
+BRAND =~ Im17 + Im18
+FRENCH =~ Im6 + Im7
+
+AFCOM =~ COM_A1 + COM_A2 + COM_A3 + COM_A4
+SAT =~ SAT_1 + SAT_2 + SAT_3
+RI =~ C_REP1 + C_REP2 + C_REP3
+COI =~ C_CR1 + C_CR3 + C_CR4
+
+SAT ~ s1*DECO + s2*FOOD + s3*ATMOS + s4*PRODQUAL + s5*CHOICE + s6*PROF + s7*BRAND + s8*FRENCH
+AFCOM ~ a1*DECO + a2*FOOD + a3*ATMOS + a4*PRODQUAL + a5*CHOICE + a6*PROF + a7*BRAND + a8*FRENCH
+SAT ~~ AFCOM 
+
+RI ~ rs*SAT + ra*AFCOM + r01*DECO + r02*FOOD + r03*ATMOS + r04*PRODQUAL + r05*CHOICE + r06*PROF + r07*BRAND + r08*FRENCH
+COI ~ cs*SAT + ca*AFCOM + c01*DECO + c02*FOOD + c03*ATMOS + c04*PRODQUAL + c05*CHOICE + c06*PROF + c07*BRAND + c08*FRENCH
+RI ~~ COI
+
+rss1:= rs*s1
+raa1:= ra*a1
+css1:= cs*s1
+caa1:= ca*a1
+DECOtoRI:= r01 + rss1 + raa1
+DECOtoCOI:= c01 + css1 + caa1
+
+rss2:= rs*s2
+raa2:= ra*a2
+css2:= cs*s2
+caa2:= ca*a2
+FOODtoRI:= r02 + rss2 + raa2
+FOODtoCOI:= c02 + css2 + caa2
+
+rss3:= rs*s3
+raa3:= ra*a3
+css3:= cs*s3
+caa3:= ca*a3
+ATMOStoRI:= r03 + rss3 + raa3
+ATMOStoCOI:= c03 + css3 + caa3
+
+rss4:= rs*s4
+raa4:= ra*a4
+css4:= cs*s4
+caa4:= ca*a4
+PQUALtoRI:= r04 + rss4 + raa4
+PQUALtoCOI:= c04 + css4 + caa4
+
+rss5:= rs*s5
+raa5:= ra*a5
+css5:= cs*s5
+caa5:= ca*a5
+CHOICEtoRI:= r05 + rss5 + raa5
+CHOICEtoCOI:= c05 + css5 + caa5
+
+rss6:= rs*s6
+raa6:= ra*a6
+css6:= cs*s6
+caa6:= ca*a6
+PROFtoRI:= r06 + rss6 + raa6
+PROFtoCOI:= c06 + css6 + caa6
+
+rss7:= rs*s7
+raa7:= ra*a7
+css7:= cs*s7
+caa7:= ca*a7
+BRANDtoRI:= r07 + rss7 + raa7
+BRANDtoCOI:= c07 + css7 + caa7
+
+rss8:= rs*s8
+raa8:= ra*a8
+css8:= cs*s8
+caa8:= ca*a8
+FRENCHtoRI:= r08 + rss8 + raa8
+FRENCHtoCOI:= c08 + css8 + caa8
+"
+```
+
+### Fit
+
+```{r}
+fit_SEM <- cfa(model_SEM, data=survey, missing="ML")
+```
+
+### SEM plot
+
+```{r, fig.height=8}
+# semPaths(fit_SEM, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2),
+#          nCharNodes = 7,shapeMan = "rectangle", sizeMan = 8, sizeMan2 = 5,
+#          curvePivot=TRUE, edge.label.cex = 1.2, edge.color = "skyblue4")
+
+
+# semPaths(fit_SEM, what = "path", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3", mar = c(1, 2, 1, 2),
+#          nCharNodes = 7,shapeMan = "rectangle",
+#          sizeMan = 4, sizeMan2 = 3, sizeInt = 2, sizeLat = 6, asize = 1.5,
+#          curvePivot=TRUE, edge.label.cex = .8, edge.color = "skyblue4"
+#          )
+
+
+semPaths(fit_SEM, what = "col", whatLabels = "par", style = "ram",
+         rotation = 2, layout = "tree3",
+         mar = c(1, 2, 1, 2), #margins
+         nCharNodes = 7,
+         shapeMan = "rectangle", # variable shape
+         sizeMan = 4, # variable shape size
+         sizeMan2 = 3, # variable shape vertical stretch
+         # structural = T, # don't plot image variables (manifests)
+         sizeInt = 1, # intercept size
+         intercepts = F, # don't include intercepts
+         sizeLat = 5, #factor size
+         asize = 2, # arrow size
+         curvePivot=T, # edge broken curve
+         edge.label.cex = .5, # edge label size
+         # edge.color = "skyblue4",
+         # levels= c(1,2,7,8,9,10),
+         groups = "latents",
+         cut = .5 #cutoff for edges,
+         )
+
+# semPaths(fit_SEM, what = "est", whatLabels = "std", style = "mx",
+#          rotation = 2, layout = "tree3",
+#          mar = c(1, 2, 1, 2), #margins
+#          nCharNodes = 7,
+#          shapeMan = "rectangle", # variable shape
+#          sizeMan = 4, # variable shape size
+#          sizeMan2 = 3, # variable shape vertical stretch
+#          structural = T, # don't plot image variables (manifests)
+#          sizeInt = 1, # intercept size
+#          intercepts = F, # don't include intercepts
+#          sizeLat = 5, #factor size
+#          asize = 2, # arrow size
+#          curvePivot=T, # edge broken curve
+#          edge.label.cex = .6, # edge label size
+#          edge.color = "skyblue4",
+#          # levels= c(1,2,7,8,9,10),
+#          # groups = "latents",
+#          cut = .4 #cutoff for edges,
+#          )
+```
+
+
+## Global fit measures
+
+```{r}
+global_fit_measures <- f_global_fit_measures(fit_SEM)
+# check global fit pass/fail of global fit measures
+global_fit_measures[[1]]
+# output full summary
+global_fit_measures[[2]]
+```
+
+
+## local fit measures
+
+```{r}
+lambda = inspect(fit_SEM, what="std")$lambda
+theta = inspect(fit_SEM, what="std")$theta
+psi = inspect(fit_SEM, what="std")$psi
+```
+
+### Indicator reliability criterion (Individual Item Reliability)
+
+```{r}
+# JONATHAN
+# calculate indicator reliabilities (should be larger than 0.4)
+indic_rel <- f_indic_rel(lambda, theta)
+# pass/fail
+indic_rel[[1]]
+# details
+indic_rel[[2]]
+indic_rel[[3]]
+```
+
+
+```{r}
+# FERESHTEH
+#Local Fit
+
+std.loadings<- inspect(fit_SEM, what="std")$lambda
+check=std.loadings
+check[check>0] <- 1
+std.loadings[std.loadings==0] <- NA
+std.loadings2 <- std.loadings^2
+std.theta<- inspect(fit_SEM, what="std")$theta
+
+#Individual item Reliability
+IIR=std.loadings2/(colSums(std.theta)+std.loadings2)
+IIR
+```
+
+### Construct reliability criterion
+
+```{r}
+# JONATHAN
+# calculate construct reliability (should be above .6)
+construct_rel <- f_construct_rel(lambda,theta)
+# pass/fail
+construct_rel[[1]]
+# details
+construct_rel[[2]]
+construct_rel[[3]]
+```
+
+```{r}
+# FERESHTEH
+#Composite/Construct Reliability
+sum.std.loadings<-colSums(std.loadings, na.rm=TRUE)^2
+sum.std.theta<-rowSums(std.theta)
+sum.std.theta=check*sum.std.theta
+CR=sum.std.loadings/(sum.std.loadings+colSums(sum.std.theta))
+CR
+```
+
+### Average Variance Extracted criterion
+
+```{r}
+# JONATHAN
+# calculate Average Variance Extracted (should be above .5)
+AVE <- f_AVE(lambda,theta)
+# pass/fail
+AVE[[1]]
+# details
+AVE[[2]]
+AVE[[3]]
+```
+
+```{r}
+# FERESHTEH
+#Average Variance Extracted
+std.loadings<- inspect(fit_SEM, what="std")$lambda
+std.loadings <- std.loadings^2
+AVE_fshteh=colSums(std.loadings)/(colSums(sum.std.theta)+colSums(std.loadings))
+AVE_fshteh
+```
+
+### Construct correlations
+
+```{r}
+# JONATHAN
+# correlations between constructs (factors...) should be lower than .7
+construct_cor <- f_construct_corr(psi)
+# pass / fail
+construct_cor[[1]]
+# details
+construct_cor[[2]]
+construct_cor[[3]]
+```
+
+### Fornell-Larcker Criteria
+
+```{r}
+# JONATHAN
+# AVE should be higher than squared correlations between constructs
+fornell_larcker <- f_fornell_larcker(psi,AVE[[2]])
+# pass / fail
+fornell_larcker[[1]]
+# details (note: AVE is in the diagonals)
+fornell_larcker[[2]]
+fornell_larcker[[3]]
+```
+
+
+```{r}
+# FERESHTEH
+std_fit1=inspect(fit_SEM, "std")
+std_fit1$psi^2
+```
+
+## Modification indices
+
+```{r}
+arrange(modificationindices(fit_SEM),-mi) |> filter(mi>10)
+```
+
+
+## Path analysis
+
+
+```{r}
+parameterestimates(fit_SEM, boot.ci.type = "bca.simple", standardized = TRUE) |>
+  arrange(-std.all,pvalue) |> filter(label!="") |>
+  stable()
+```
+
+
+
