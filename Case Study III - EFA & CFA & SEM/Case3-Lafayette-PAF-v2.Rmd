@@ -332,6 +332,54 @@ Eigenvalue
 }
 ```
 
+## f_factor_interp
+
+```{r}
+f_factor_interp <- function(fit, labels, f_interp_list){
+  
+ # create a dataframe which lists the variables in one column and in the other the factor on which they load most (the max)
+Im_factor <- data.frame(
+  Variable = rownames(fit$loadings),
+  Loads_on = colnames(fit$loadings)[max.col(fit$loadings)]
+  )
+
+# merge the labels data and the factor loaded on data
+factor_interp <- merge(labels, Im_factor, by = 'Variable', all.x=T, all.y=F)
+
+# select only the images (all variables containing "Im")
+factor_interp <- factor_interp[grep("Im",factor_interp$Variable),] 
+
+# order by factor
+setorder(factor_interp, Loads_on)
+
+# add a column with the interpretations
+
+factor_interp["Interpretation"] <- "excluded"
+
+for (k in seq_along(f_interp_list)){
+  
+  factor_interp["Interpretation"][factor_interp["Loads_on"]==names(f_interp_list[k])] <- f_interp_list[k]
+  
+}
+
+# factor_interpret["Interpretation"] <- "excluded"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR1"] <- "Decoration"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR2"] <- "Gourmet Food"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR3"] <- "Relaxed Atmosphere"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR4"] <- "Product Quality"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR5"] <- "Choice Range"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR6"] <- "Brand Image"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR7"] <- "Frenchness"
+# factor_interpret["Interpretation"][factor_interpret["Loads_on"]=="MR8"] <- "Service Quality"
+
+kbl <- data.table(factor_interp[c("Variable", "Label_short", "Loads_on","Interpretation")]) |>
+  stable() 
+
+kbl
+}
+```
+
+
 ## f_fornell_larcker
 
 ```{r}
@@ -472,6 +520,7 @@ f_indic_rel <- function(lambda, theta){
 }
 ```
 
+
 ## f_kaiser {.unnumbered}
 
 ```{r}
@@ -492,9 +541,10 @@ f_loadings <- function(fit){
  
       # print(fit$loadings, cutoff=0.3)
       # print(print_html(model_parameters(fit, loadings=T, threshold = 0.3, summary=T))) 
+
       kbl <- model_parameters(fit, loadings=T, threshold = 0.3, summary=T) |>
         stable()
-      kbl 
+      kbl
 }
 ```
 
@@ -503,6 +553,7 @@ f_loadings <- function(fit){
 ```{r}
 f_MSA <- function(data){
 
+  KMOTEST=KMOS(data)
   # Anti-image Correlation (MSA > 0.5)
   MSA_list <- data.table("Item"=names(KMOTEST$MSA), "MSA"=as.numeric(KMOTEST$MSA))
   
@@ -730,6 +781,8 @@ labels["Category"] <- sub("[^-]*\\s-","",labels[["Label"]])
 #split this new column (category) into category and short label
 labels[c("Category","Label_short")] <- str_split_fixed(labels[["Category"]],"\\?\\s\\s|\\s-", n=2)
 # labels[20:25,c("Category","Label_short")]
+
+# print out the table
 labels[,c("Variable","Category","Label_short")] |>
   stable()
 ```
@@ -1006,6 +1059,23 @@ cat("\n\n")
 ```
 
 #### {.unlisted .unnumbered}
+
+
+### Factor interpretation
+
+```{r}
+fact_interpretation <- c("Decoration","Gourmet Food","Relaxed Atmosphere",
+                    "Product Quality","Choice Range","Brand Image",
+                    "Frenchness","Service Quality")
+
+names(fact_interpretation) <- c("MR1","MR2","MR3",
+                           "MR4","MR5","MR6",
+                           "MR7","MR8")
+
+
+f_factor_interp(PAFn[["8"]], labels,fact_interpretation)
+```
+
 
 # Confirmatory factor analysis
 
