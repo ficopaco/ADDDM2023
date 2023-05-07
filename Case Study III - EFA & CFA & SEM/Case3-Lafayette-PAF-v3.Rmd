@@ -3,7 +3,7 @@ title: "Case Study 3: Galeries Lafayette"
 author: "UNIGE - GSEM - Advanced Data-Driven Decision Making"
 date: "`r Sys.Date()`"
 abstract:
-  Identify the key drivers of brand equity for Galeries Lafayette based on a questionnaire mailed to 5000 customers and returned by 600 of them
+  Identify the key drivers of brand equity for Galeries Lafayette based on a questionnaire mailed to 5000 customers and returned by 600 of them.
 output: 
   html_document: 
     theme: readable
